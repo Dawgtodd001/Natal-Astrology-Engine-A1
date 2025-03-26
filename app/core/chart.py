@@ -82,28 +82,51 @@ def create_natal_chart(
     
     # Extract planetary positions
     planets = []
-    for planet_id in const.LIST_PLANETS + [const.NORTH_NODE]:
-        obj = chart.getObject(planet_id)
-        planets.append({
-            "name": obj.id,
-            "sign": obj.sign,
-            "degree": int(obj.lon) % 30,
-            "minutes": int((obj.lon % 30 - int(obj.lon) % 30) * 60),
-            "house": int(obj.house),
-            "retrograde": obj.retrograde,
-            "speed": obj.lonspeed
-        })
+    # Use LIST_OBJECTS instead of LIST_PLANETS which doesn't exist
+    for planet_id in const.LIST_OBJECTS:
+        try:
+            obj = chart.getObject(planet_id)
+            # Get the house using the getObjectHouse method
+            house_obj = chart.houses.getObjectHouse(obj)
+            # Extract house number from the house ID (e.g., "House1" -> 1)
+            house_num = int(house_obj.id.replace("House", ""))
+            
+            planets.append({
+                "name": obj.id,
+                "sign": obj.sign,
+                "degree": int(obj.lon) % 30,
+                "minutes": int((obj.lon % 30 - int(obj.lon) % 30) * 60),
+                "house": house_num,
+                "retrograde": obj.isRetrograde() if hasattr(obj, 'isRetrograde') and callable(obj.isRetrograde) else False,
+                "speed": obj.lonspeed
+            })
+        except Exception as e:
+            # Skip objects that aren't available in the chart
+            logger.warning(f"Skipping object {planet_id}: {str(e)}")
+            continue
     
     # Extract house positions
     houses = []
+    # Use the house IDs from the constants (House1, House2, etc.)
     for i in range(1, 13):
-        house = chart.getHouse(i)
-        houses.append({
-            "number": i,
-            "sign": house.sign,
-            "degree": int(house.lon) % 30,
-            "minutes": int((house.lon % 30 - int(house.lon) % 30) * 60)
-        })
+        try:
+            house_id = f"House{i}"
+            house = chart.getHouse(house_id)
+            houses.append({
+                "number": i,
+                "sign": house.sign,
+                "degree": int(house.lon) % 30,
+                "minutes": int((house.lon % 30 - int(house.lon) % 30) * 60)
+            })
+        except Exception as e:
+            logger.warning(f"Error accessing house {i}: {str(e)}")
+            # Create a placeholder house to maintain the expected structure
+            houses.append({
+                "number": i,
+                "sign": "Unknown",
+                "degree": 0,
+                "minutes": 0
+            })
     
     # Calculate aspects
     aspects = calculate_aspects(planets)

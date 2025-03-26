@@ -57,26 +57,29 @@ def get_available_house_systems() -> Dict[str, str]:
 
 def get_house_system_code(house_system: str) -> str:
     """
-    Get the single-letter code for a house system that flatlib expects
+    Get the house system constant from flatlib
     
     Args:
         house_system: House system name (e.g., 'placidus')
         
     Returns:
-        Single-letter code for the house system
+        Flatlib house system constant
     """
+    from flatlib import const
+    
+    # Map of house system names to flatlib constants
     house_system_map = {
-        'placidus': 'p',
-        'koch': 'k',
-        'equal': 'e',
-        'regiomontanus': 'r',
-        'campanus': 'c',
-        'morinus': 'm',
-        'whole_sign': 'a',
-        'porphyry': 'o',
-        'polich_page': 't',
-        'alcabitius': 'b',
-        'topocentric': 'z',  # Azimuthal/Topocentric
+        'placidus': const.HOUSES_PLACIDUS,
+        'koch': const.HOUSES_KOCH,
+        'equal': const.HOUSES_EQUAL,
+        'regiomontanus': const.HOUSES_REGIOMONTANUS,
+        'campanus': const.HOUSES_CAMPANUS,
+        'morinus': const.HOUSES_MORINUS,
+        'whole_sign': const.HOUSES_WHOLE_SIGN,
+        'porphyry': const.HOUSES_PORPHYRIUS,
+        'alcabitius': const.HOUSES_ALCABITUS,
+        'polich_page': const.HOUSES_POLICH_PAGE,
+        'topocentric': const.HOUSES_AZIMUTHAL,  # Azimuthal/Topocentric
     }
     
-    return house_system_map.get(house_system.lower(), 'p')
+    return house_system_map.get(house_system.lower(), const.HOUSES_PLACIDUS)
