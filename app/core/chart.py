@@ -47,13 +47,22 @@ def create_natal_chart(
             raise ValueError("Timezone could not be resolved from coordinates and was not provided")
     
     # Create Date object in flatlib format
-    date = Datetime(birth_date, birth_time, timezone)
+    # Convert ISO format date (YYYY-MM-DD) to flatlib format (YYYY/MM/DD)
+    flatlib_date = birth_date.replace('-', '/')
+    
+    # Convert IANA timezone to UTC offset that flatlib understands
+    from app.core.utils.timezone import get_utc_offset
+    utc_offset = get_utc_offset(timezone)
+    
+    # Create the datetime with the correct format
+    date = Datetime(flatlib_date, birth_time, utc_offset)
     
     # Create GeoPos object
     pos = GeoPos(latitude, longitude)
     
-    # Create Chart object
-    chart = Chart(date, pos, hsys=house_system[0], IDs=const.LIST_OBJECTS)
+    # Create Chart object - use the first letter of house system
+    hsys = house_system[0].lower()  # Use lowercase first letter
+    chart = Chart(date, pos, hsys=hsys, IDs=const.LIST_OBJECTS)
     
     # Extract planetary positions
     planets = []
