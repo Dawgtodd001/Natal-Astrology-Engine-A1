@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Natal Astrology Engine API</title>
+    <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        .api-key {
+            word-break: break-all;
+            font-family: monospace;
+        }
+        pre {
+            background-color: var(--bs-dark);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            white-space: pre-wrap;
+        }
+        .card {
+            margin-bottom: 1.5rem;
+        }
+        .zodiac-icon {
+            width: 32px;
+            height: 32px;
+            margin-right: 8px;
+        }
+        .header-icon {
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-stars me-2"></i>
+                Natal Astrology Engine
+            </a>
+            <div class="d-flex">
+                <a href="/docs" class="btn btn-outline-info" target="_blank">
+                    <i class="bi bi-file-earmark-text"></i> API Docs
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title">
+                            <i class="bi bi-stars header-icon"></i>
+                            Natal Astrology Engine API
+                        </h2>
+                        <p class="card-text">
+                            Welcome to the Natal Astrology Engine API. This service allows you to generate 
+                            and interpret astrological birth charts based on birth information.
+                        </p>
+                        <a href="/docs" class="btn btn-primary">Interactive API Documentation</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-6 mb-4 mb-md-0">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h4><i class="bi bi-file-earmark-code header-icon"></i>API Endpoints</h4>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">
+                                <strong>POST /chart</strong>
+                                <p>Generate a natal chart based on birth information</p>
+                            </li>
+                            <li class="list-group-item">
+                                <strong>POST /interpret</strong>
+                                <p>Generate and interpret a natal chart</p>
+                            </li>
+                            <li class="list-group-item">
+                                <strong>GET /house-systems</strong>
+                                <p>Get available house systems and descriptions</p>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h4><i class="bi bi-key header-icon"></i>Authentication</h4>
+                    </div>
+                    <div class="card-body">
+                        <p>All API requests require an API key sent in the <code>X-API-Key</code> header.</p>
+                        <div class="alert alert-info">
+                            <h5>Example Request</h5>
+                            <pre>curl -X POST https://your-api-url/chart \
+-H "X-API-Key: your-api-key" \
+-H "Content-Type: application/json" \
+-d '{
+  "birth_date": "1990-06-15",
+  "birth_time": "14:30",
+  "latitude": 40.7128,
+  "longitude": -74.0060,
+  "house_system": "placidus",
+  "zodiac_type": "tropical"
+}'</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h4><i class="bi bi-code-square header-icon"></i>Example Usage</h4>
+                    </div>
+                    <div class="card-body">
+                        <h5>Request</h5>
+                        <pre>POST /interpret
+{
+  "birth_date": "1990-06-15",
+  "birth_time": "14:30",
+  "latitude": 40.7128,
+  "longitude": -74.0060,
+  "timezone": "America/New_York",
+  "house_system": "placidus",
+  "zodiac_type": "tropical",
+  "template_name": "markdown"
+}</pre>
+
+                        <h5 class="mt-4">Response</h5>
+                        <pre># Natal Chart Interpretation
+
+**Birth Information:**
+- Date: 1990-06-15
+- Time: 14:30
+- Coordinates: 40.7128° N, 74.006° W
+- Timezone: America/New_York
+
+## Sun in Gemini
+The Sun in Gemini bestows a curious, versatile mind. You're communicative, quick-witted, and intellectually adaptable. You may have many interests but can sometimes lack follow-through as you chase new ideas.
+
+## Moon in Libra
+With Moon in Libra, your emotional nature seeks harmony and balance. You have a strong need for relationships and may avoid conflict to maintain peace. Your feelings are often influenced by those around you as you naturally attune to others.
+
+## Ascendant in Leo
+The Ascendant represents your outward personality and how others perceive you. With Leo rising, you come across as charismatic, proud, and warmly expressive.</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-5">
+            <div class="col-md-6 mb-4 mb-md-0">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h4><i class="bi bi-house header-icon"></i>House Systems</h4>
+                    </div>
+                    <div class="card-body">
+                        <p>The API supports multiple house systems for chart calculations:</p>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item"><strong>Placidus</strong> - Most commonly used modern system</li>
+                            <li class="list-group-item"><strong>Whole Sign</strong> - Ancient system where each sign equals one house</li>
+                            <li class="list-group-item"><strong>Equal Houses</strong> - Houses of equal size (30°)</li>
+                            <li class="list-group-item"><strong>Koch</strong> - Time-based system popular in Germany</li>
+                            <li class="list-group-item"><strong>Campanus</strong> - Medieval system using the prime vertical</li>
+                            <li class="list-group-item"><strong>And more...</strong> - See /house-systems endpoint</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h4><i class="bi bi-stars header-icon"></i>Features</h4>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                Accurate planetary positions using flatlib
+                            </li>
+                            <li class="list-group-item">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                Automatic timezone detection from coordinates
+                            </li>
+                            <li class="list-group-item">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                Multiple house system calculations
+                            </li>
+                            <li class="list-group-item">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                Aspect calculations with applying/separating info
+                            </li>
+                            <li class="list-group-item">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                Comprehensive planet, house, and aspect interpretations
+                            </li>
+                            <li class="list-group-item">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                Customizable interpretation templates
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="text-center mb-5">
+            <p>Natal Astrology Engine API &copy; 2023</p>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

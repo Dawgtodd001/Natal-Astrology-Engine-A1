@@ -1,0 +1,31 @@
+# Natal Chart Interpretation
+
+**Birth Information:**
+- Date: {{ birth_info.birth_date }}
+- Time: {{ birth_info.birth_time }}
+- Coordinates: {{ birth_info.latitude }}° {{ 'N' if birth_info.latitude >= 0 else 'S' }}, {{ birth_info.longitude }}° {{ 'E' if birth_info.longitude >= 0 else 'W' }}
+- Timezone: {{ birth_info.timezone }}
+
+## Sun in {{ sun.sign }}
+{{ sun_sign_interpretation }}
+
+## Moon in {{ moon.sign }}
+{{ moon_sign_interpretation }}
+
+## Ascendant in {{ ascendant.sign }}
+The Ascendant represents your outward personality and how others perceive you. With {{ ascendant.sign }} rising, you come across as {{ ascendant_keywords }}.
+
+## Planetary Positions
+{% for planet in planets %}
+- **{{ planet.name }}** in **{{ planet.sign }}** ({{ planet.house }}{{ 'st' if planet.house == 1 else 'nd' if planet.house == 2 else 'rd' if planet.house == 3 else 'th' }} house)
+{% endfor %}
+
+## Major Aspects
+{% for aspect in major_aspects %}
+- **{{ aspect.planet1 }}** {{ aspect.aspect_type }} **{{ aspect.planet2 }}** (orb: {{ aspect.orb|round(1) }}°)
+{% endfor %}
+
+## House Cusps
+{% for house in houses %}
+- **House {{ house.number }}**: {{ house.sign }} {{ house.degree }}°{{ house.minutes }}'
+{% endfor %}
