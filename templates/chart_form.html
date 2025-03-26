@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Natal Astrology Engine - Generate Chart{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h2 class="h5 mb-0">Generate Natal Chart</h2>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('chart') }}">
+                    <div class="mb-3">
+                        <label for="birth_date" class="form-label">Birth Date</label>
+                        <input type="date" class="form-control" id="birth_date" name="birth_date" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="birth_time" class="form-label">Birth Time (24-hour format)</label>
+                        <input type="time" class="form-control" id="birth_time" name="birth_time" required>
+                        <div class="form-text">For accurate results, please provide the exact birth time.</div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="latitude" class="form-label">Latitude</label>
+                            <input type="number" class="form-control" id="latitude" name="latitude" step="0.0001" min="-90" max="90" required>
+                            <div class="form-text">Decimal degrees (e.g., 40.7128 for New York)</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="longitude" class="form-label">Longitude</label>
+                            <input type="number" class="form-control" id="longitude" name="longitude" step="0.0001" min="-180" max="180" required>
+                            <div class="form-text">Decimal degrees (e.g., -74.0060 for New York)</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="timezone" class="form-label">Timezone (optional)</label>
+                        <input type="text" class="form-control" id="timezone" name="timezone">
+                        <div class="form-text">IANA timezone name (e.g., America/New_York). If left empty, will be auto-detected from coordinates.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="house_system" class="form-label">House System</label>
+                        <select class="form-select" id="house_system" name="house_system">
+                            {% for system_id, description in house_systems.items() %}
+                                <option value="{{ system_id }}" {% if system_id == "placidus" %}selected{% endif %}>
+                                    {{ system_id|capitalize }} - {{ description|truncate(50) }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Generate Chart</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <h3>Quick Location Presets</h3>
+            <div class="row">
+                <div class="col-md-3 mb-2">
+                    <button class="btn btn-outline-secondary w-100" onclick="fillLocation('New York', 40.7128, -74.0060)">New York</button>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <button class="btn btn-outline-secondary w-100" onclick="fillLocation('London', 51.5074, -0.1278)">London</button>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <button class="btn btn-outline-secondary w-100" onclick="fillLocation('Tokyo', 35.6762, 139.6503)">Tokyo</button>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <button class="btn btn-outline-secondary w-100" onclick="fillLocation('Sydney', -33.8688, 151.2093)">Sydney</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function fillLocation(city, lat, lng) {
+        document.getElementById('latitude').value = lat;
+        document.getElementById('longitude').value = lng;
+    }
+    
+    // Set default date/time values
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set to current date
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        
+        document.getElementById('birth_date').value = `${year}-${month}-${day}`;
+        document.getElementById('birth_time').value = '12:00';
+    });
+</script>
+{% endblock %}

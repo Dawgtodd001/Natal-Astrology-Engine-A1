@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Natal Astrology Engine - Home{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12 text-center mb-5">
+        <h1 class="display-4">Natal Astrology Engine</h1>
+        <p class="lead">A sophisticated astrological calculation and interpretation service</p>
+    </div>
+</div>
+
+<div class="row mb-5">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h5 class="card-title">Generate Chart</h5>
+                <p class="card-text">Calculate a complete natal chart with planetary positions, houses, and aspects.</p>
+                <a href="{{ url_for('chart') }}" class="btn btn-primary">Create Chart</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h5 class="card-title">Interpret Chart</h5>
+                <p class="card-text">Generate a detailed interpretation of your natal chart with personalized insights.</p>
+                <a href="{{ url_for('interpret') }}" class="btn btn-primary">Get Interpretation</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h5 class="card-title">House Systems</h5>
+                <p class="card-text">Learn about different astrological house systems and their significance.</p>
+                <a href="{{ url_for('house_systems') }}" class="btn btn-primary">View House Systems</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <h3>About Natal Astrology</h3>
+        <p>
+            Natal astrology is the system of astrology based on the concept that each person's personality or path in life can be determined by constructing a natal chart for the exact date, time, and place of a person's birth.
+        </p>
+        <p>
+            A natal chart, also called a birth chart, is a map of where all the planets were in their journey around the Sun at the exact moment you were born. This chart is calculated using the precise time, date, and place of your birth.
+        </p>
+    </div>
+    <div class="col-md-6">
+        <h3>Features</h3>
+        <ul class="list-group">
+            <li class="list-group-item">Accurate planetary positions using Swiss Ephemeris data</li>
+            <li class="list-group-item">Support for multiple house systems including Placidus, Koch, Whole Sign, and more</li>
+            <li class="list-group-item">Detailed aspect calculations between planets</li>
+            <li class="list-group-item">Automatic timezone detection from geographic coordinates</li>
+            <li class="list-group-item">Interpretations of planets in signs, houses, and aspects</li>
+            <li class="list-group-item">Comprehensive API for developers</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
