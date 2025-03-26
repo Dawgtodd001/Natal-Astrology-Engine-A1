@@ -322,22 +322,63 @@ The Ascendant represents your outward personality and how others perceive you. W
     db.commit()
 
 def seed_api_keys(db):
-    """Add default API keys to database"""
+    """Add default API keys to database if they don't exist"""
     from app.models import ApiKey
     import secrets
     from datetime import datetime
+    import logging
     
-    # Create a fixed test API key for development
-    test_key = ApiKey(
-        key="test_key_1234567890",
-        name="Test API Key",
-        enabled=True,
-        rate_limit=100,  # Requests per minute
-        daily_limit=1000,  # Requests per day
-        created_at=datetime.now().isoformat()
-    )
+    logger = logging.getLogger(__name__)
     
-    # Generate a secure API key for production use
+    # Check if test key already exists
+    test_key_value = "test_key_1234567890"
+    existing_test_key = db.query(ApiKey).filter(ApiKey.key == test_key_value).first()
+    
+    # Check if we have a default key already
+    existing_default_key = db.query(ApiKey).filter(ApiKey.name == "Default API Key").first()
+    
+    new_keys = []
+    
+    # Create a fixed test API key for development if it doesn't exist
+    if not existing_test_key:
+        test_key = ApiKey(
+            key=test_key_value,
+            name="Test API Key",
+            enabled=True,
+            rate_limit=100,  # Requests per minute
+            daily_limit=1000,  # Requests per day
+            created_at=datetime.now().isoformat()
+        )
+        new_keys.append(test_key)
+        logger.info("Created test API key")
+    else:
+        logger.info("Test API key already exists")
+    
+    # Create a default API key if none exists
+    if not existing_default_key:
+        default_key = ApiKey(
+            key=secrets.token_hex(32),
+            name="Default API Key",
+            enabled=True,
+            rate_limit=60,  # Requests per minute
+            daily_limit=1000,  # Requests per day
+            created_at=datetime.now().isoformat()
+        )
+        new_keys.append(default_key)
+        logger.info("Created default API key")
+    else:
+        logger.info("Default API key already exists")
+    
+    # If we have new keys, add them
+    if new_keys:
+        db.add_all(new_keys)
+        db.commit()
+        
+        # Log the keys that were created
+        for key in new_keys:
+            logger.info(f"API key created: {key.name} ({key.key})")
+    
+    # Always create a new secure key for this session
     secure_key = ApiKey(
         key=secrets.token_hex(32),
         name="Production API Key",
@@ -346,10 +387,13 @@ def seed_api_keys(db):
         daily_limit=1000,  # Requests per day
         created_at=datetime.now().isoformat()
     )
-    
-    db.add_all([test_key, secure_key])
+    db.add(secure_key)
     db.commit()
     
-    print(f"Created default API keys:")
-    print(f"- Test key: {test_key.key} (use this for development)")
-    print(f"- Production key: {secure_key.key}")
+    logger.info(f"Created new production API key: {secure_key.key}")
+    
+    # Print all available keys for reference
+    all_keys = db.query(ApiKey).all()
+    logger.info(f"Available API keys:")
+    for key in all_keys:
+        logger.info(f"- {key.name}: {key.key} (enabled: {key.enabled})")

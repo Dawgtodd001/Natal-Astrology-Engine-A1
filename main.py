@@ -21,12 +21,36 @@ def redirect_to_api():
     <html>
         <head>
             <meta http-equiv="refresh" content="0;url=http://localhost:8000/docs" />
-            <title>Redirecting to API documentation</title>
+            <title>Natal Astrology API</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }
+                .links {
+                    margin-top: 20px;
+                }
+                .links a {
+                    display: block;
+                    margin-bottom: 10px;
+                }
+            </style>
         </head>
         <body>
-            <h1>Redirecting...</h1>
-            <p>The API is running on port 8000. Redirecting to the API documentation.</p>
-            <p>If you are not redirected automatically, follow this <a href="http://localhost:8000/docs">link to the API documentation</a>.</p>
+            <h1>Natal Astrology API</h1>
+            <p>Welcome to the Natal Astrology API service. The API is running on port 8000.</p>
+            
+            <div class="links">
+                <h2>API Resources:</h2>
+                <a href="http://localhost:8000/docs">Swagger Documentation</a>
+                <a href="http://localhost:8000/redoc">ReDoc Documentation</a>
+                <a href="http://localhost:8000/api/health">API Health Check</a>
+            </div>
+            
+            <p>You are being redirected to the API documentation. If you are not redirected automatically, please click one of the links above.</p>
         </body>
     </html>
     """

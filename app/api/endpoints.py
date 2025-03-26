@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional
 import datetime
 import hashlib
 import traceback
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from fastapi.responses import PlainTextResponse
@@ -317,9 +318,74 @@ async def get_house_systems(
         )
 
 
+@router.get("/health")
+async def health_check(db: Session = Depends(get_db)):
+    """
+    Health check endpoint
+    
+    Returns status of the API and its dependencies
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        Dictionary with health check results
+    """
+    start_time = time.time()
+    
+    # Check database connection
+    db_status = "healthy"
+    db_error = None
+    try:
+        # Simple query to test database connection
+        from sqlalchemy import text
+        db.execute(text("SELECT 1")).fetchone()
+    except Exception as e:
+        db_status = "unhealthy"
+        db_error = str(e)
+    
+    # Check if we have API keys in the database
+    api_keys_status = "healthy"
+    api_keys_count = 0
+    try:
+        from app.models import ApiKey
+        api_keys_count = db.query(ApiKey).count()
+        if api_keys_count == 0:
+            api_keys_status = "warning"
+    except Exception as e:
+        api_keys_status = "unhealthy"
+    
+    # Overall status
+    status = "healthy"
+    if db_status == "unhealthy" or api_keys_status == "unhealthy":
+        status = "unhealthy"
+    elif api_keys_status == "warning":
+        status = "warning"
+    
+    response_time = time.time() - start_time
+    
+    return {
+        "status": status,
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "version": "1.0.0",
+        "components": {
+            "database": {
+                "status": db_status,
+                "error": db_error
+            },
+            "api_keys": {
+                "status": api_keys_status,
+                "count": api_keys_count
+            }
+        },
+        "response_time_seconds": round(response_time, 3)
+    }
+
+
 @router.get("/admin/keys")
 async def get_api_keys(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin_password: str = Query(..., description="Admin password for accessing API keys")
 ):
     """
     Development endpoint to view available API keys
@@ -328,11 +394,24 @@ async def get_api_keys(
     
     Args:
         db: Database session
+        admin_password: Admin password for authentication
         
     Returns:
         List of API keys in the system
+        
+    Raises:
+        HTTPException: If admin password is invalid
     """
-    logger.warning("Admin API key endpoint accessed")
+    # Simple admin password check - in production, use a more secure method
+    # This is a basic security measure for development only
+    if admin_password != "natal_admin_2025":
+        logger.warning("Unauthorized admin access attempt", extra={"password_length": len(admin_password)})
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid admin password"
+        )
+    
+    logger.warning("Admin API key endpoint accessed", extra={"authorized": True})
     
     try:
         api_keys = db.query(ApiKey).all()
