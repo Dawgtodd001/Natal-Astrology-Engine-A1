@@ -1,0 +1,71 @@
+Based on my examination of the core files, I can now provide a solid migration plan for your Natal Astrology Engine project. Here's a detailed breakdown of what we should transfer to the new Replit app:
+
+Migration Plan: Natal Astrology Engine
+Core Components to Transfer
+1. API Backend
+Main Application (app/main.py): FastAPI application configuration
+API Endpoints (app/api/endpoints.py): Chart generation and interpretation endpoints
+Data Models (app/models.py): Database models for interpretations and API keys
+Database Setup (app/database.py): Connection and initialization logic
+2. Core Engine
+Chart Calculation (app/core/chart.py): Main astrological calculation functions
+Aspect Calculation (app/core/aspects.py): Planetary aspect calculations
+House Systems (app/core/houses.py): House system calculations
+Interpretation Logic (app/core/interpretation.py): Chart interpretation engine
+3. Utilities
+Timezone Resolution (app/core/utils/timezone.py): Geographic timezone detection
+Schema Validation (app/api/schemas.py): Request/response validation
+Authentication (app/api/auth.py): API key validation
+4. Configuration
+Environment Setup (.env): Environment variables for database and API settings
+Run Script (run.py): Server startup script
+Project Structure for New App
+/
+├── app/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── database.py
+│   ├── models.py
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── auth.py
+│   │   ├── dependencies.py
+│   │   ├── endpoints.py
+│   │   ├── middlewares.py
+│   │   └── schemas.py
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── aspects.py
+│   │   ├── chart.py
+│   │   ├── config.py
+│   │   ├── ephemeris.py
+│   │   ├── houses.py
+│   │   ├── interpretation.py
+│   │   └── utils/
+│   │       ├── __init__.py
+│   │       └── timezone.py
+│   └── templates/
+│       └── default.md.j2
+├── static/
+│   └── index.html
+├── .env
+└── run.py
+Implementation Steps
+Create New Replit Project:
+Start with a Python template
+Set up PostgreSQL database
+Install Dependencies:
+fastapi, uvicorn, sqlalchemy, flatlib, pydantic, pytz, timezonefinder, jinja2
+Transfer Core Files:
+Copy all files listed above, maintaining directory structure
+Ensure proper imports with app. prefix
+Database Setup:
+Configure PostgreSQL connection
+Initialize database with seed data
+Configure Environment:
+Set up proper environment variables
+Ensure API keys are properly configured
+Test Backend:
+Run test scripts to verify API functionality
+Check database connections
+This approach maintains all the core functionality while eliminating duplicated code and configuration issues. The clean structure will make it easier to extend and maintain the application going forward.
