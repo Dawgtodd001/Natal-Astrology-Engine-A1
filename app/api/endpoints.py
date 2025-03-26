@@ -2,11 +2,13 @@
 FastAPI endpoints for the Natal Astrology Engine
 """
 from typing import Dict, Any, Optional
+import datetime
+import hashlib
+import traceback
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
-import datetime
 
 from app.database import get_db
 from app.api.schemas import ChartRequest, ChartResponse, ChartInterpretationRequest
@@ -15,6 +17,9 @@ from app.core.chart import create_natal_chart
 from app.core.houses import get_available_house_systems
 from app.core.interpretation import render_interpretation
 from app.models import ChartCalculation
+from app.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -45,20 +50,46 @@ def log_chart_calculation(
         house_system: House system used
         zodiac_type: Zodiac system used
     """
-    # Create a new log entry
-    calculation = ChartCalculation(
-        birth_date=birth_date,
-        birth_time=birth_time,
-        latitude=latitude,
-        longitude=longitude,
-        timezone=timezone,
-        house_system=house_system,
-        zodiac_type=zodiac_type,
-        calculation_timestamp=datetime.datetime.utcnow().isoformat()
-    )
-    
-    db.add(calculation)
-    db.commit()
+    try:
+        # Generate cache key for this calculation
+        cache_key_input = f"{birth_date}|{birth_time}|{latitude}|{longitude}|{timezone}|{house_system}|{zodiac_type}"
+        cache_key = hashlib.sha256(cache_key_input.encode()).hexdigest()
+        
+        # Create a new log entry
+        calculation = ChartCalculation(
+            birth_date=birth_date,
+            birth_time=birth_time,
+            latitude=latitude,
+            longitude=longitude,
+            timezone=timezone,
+            house_system=house_system,
+            zodiac_type=zodiac_type,
+            calculation_timestamp=datetime.datetime.utcnow().isoformat(),
+            cache_key=cache_key
+        )
+        
+        db.add(calculation)
+        db.commit()
+        
+        logger.info(
+            "Chart calculation logged",
+            extra={
+                "birth_date": birth_date,
+                "latitude": latitude,
+                "longitude": longitude,
+                "house_system": house_system,
+                "zodiac_type": zodiac_type,
+                "cache_key": cache_key
+            }
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to log chart calculation: {str(e)}",
+            extra={
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            }
+        )
 
 
 @router.post("/chart", response_model=ChartResponse)

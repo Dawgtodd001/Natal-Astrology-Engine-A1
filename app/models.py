@@ -12,7 +12,10 @@ class ApiKey(Base):
     key = Column(String(64), unique=True, index=True)
     name = Column(String(128), nullable=False)
     enabled = Column(Boolean, default=True)
-    rate_limit = Column(Integer, default=100)  # Requests per day
+    rate_limit = Column(Integer, default=60)  # Requests per minute
+    daily_limit = Column(Integer, default=1000)  # Requests per day
+    created_at = Column(String(26), nullable=True)
+    last_used = Column(String(26), nullable=True)
     
     def __repr__(self):
         return f"<ApiKey {self.name}>"
@@ -71,6 +74,8 @@ class ChartCalculation(Base):
     house_system = Column(String(20), default="placidus")
     zodiac_type = Column(String(20), default="tropical")
     calculation_timestamp = Column(String(26), nullable=False)
+    cache_key = Column(String(64), nullable=True, index=True, unique=True)
+    result_json = Column(Text, nullable=True)
     
     def __repr__(self):
         return f"<ChartCalculation {self.birth_date} {self.birth_time}>"
