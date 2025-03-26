@@ -17,7 +17,7 @@ def create_natal_chart(
     birth_time: str,
     latitude: float,
     longitude: float,
-    timezone: str,
+    timezone: Optional[str],
     house_system: str = "placidus",
     zodiac_type: str = "tropical"
 ) -> Dict[str, Any]:
@@ -35,7 +35,17 @@ def create_natal_chart(
         
     Returns:
         Complete chart data dictionary
+        
+    Raises:
+        ValueError: If timezone is not provided and cannot be resolved
     """
+    # Ensure we have a timezone
+    if timezone is None:
+        from app.core.utils.timezone import resolve_timezone
+        timezone = resolve_timezone(latitude, longitude)
+        if timezone is None:
+            raise ValueError("Timezone could not be resolved from coordinates and was not provided")
+    
     # Create Date object in flatlib format
     date = Datetime(birth_date, birth_time, timezone)
     

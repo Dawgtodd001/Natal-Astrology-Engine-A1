@@ -16,12 +16,12 @@ from app.api.dependencies import get_api_key, RateLimiter
 from app.core.chart import create_natal_chart
 from app.core.houses import get_available_house_systems
 from app.core.interpretation import render_interpretation
-from app.models import ChartCalculation
+from app.models import ChartCalculation, ApiKey
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="/api")
 
 # Rate limiter instance
 rate_limiter = RateLimiter()
@@ -111,10 +111,28 @@ async def generate_chart(
     Returns:
         Complete chart data
     """
+    logger.info(
+        "Chart generation requested",
+        extra={
+            "api_key": api_key,
+            "birth_date": request.birth_date,
+            "latitude": request.latitude,
+            "longitude": request.longitude,
+            "house_system": request.house_system,
+            "zodiac_type": request.zodiac_type
+        }
+    )
+    
     # Apply rate limiting
-    rate_limiter.check_rate_limit(api_key)
+    rate_limiter.check_rate_limit(api_key, db)
     
     try:
+        # Auto-resolve timezone if not provided
+        if not request.timezone:
+            logger.info("Auto-resolving timezone from coordinates")
+            request.auto_resolve_timezone()
+            logger.info(f"Resolved timezone: {request.timezone}")
+        
         # Generate the chart
         chart_data = create_natal_chart(
             birth_date=request.birth_date,
@@ -124,6 +142,15 @@ async def generate_chart(
             timezone=request.timezone,
             house_system=request.house_system,
             zodiac_type=request.zodiac_type
+        )
+        
+        logger.info(
+            "Chart generated successfully",
+            extra={
+                "planet_count": len(chart_data["planets"]),
+                "aspect_count": len(chart_data["aspects"]),
+                "house_system": request.house_system
+            }
         )
         
         # Log the calculation in the background
@@ -142,6 +169,16 @@ async def generate_chart(
         return chart_data
     
     except Exception as e:
+        logger.error(
+            f"Chart calculation failed: {str(e)}",
+            extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "birth_date": request.birth_date,
+                "birth_time": request.birth_time,
+                "traceback": traceback.format_exc()
+            }
+        )
         raise HTTPException(status_code=400, detail=f"Chart calculation error: {str(e)}")
 
 
@@ -162,10 +199,27 @@ async def interpret_chart(
     Returns:
         Text interpretation of the chart
     """
+    logger.info(
+        "Chart interpretation requested",
+        extra={
+            "api_key": api_key,
+            "birth_date": request.birth_date,
+            "template_name": request.template_name,
+            "house_system": request.house_system,
+            "zodiac_type": request.zodiac_type
+        }
+    )
+    
     # Apply rate limiting
-    rate_limiter.check_rate_limit(api_key)
+    rate_limiter.check_rate_limit(api_key, db)
     
     try:
+        # Auto-resolve timezone if not provided
+        if not request.timezone:
+            logger.info("Auto-resolving timezone from coordinates")
+            request.auto_resolve_timezone()
+            logger.info(f"Resolved timezone: {request.timezone}")
+            
         # Generate the chart
         chart_data = create_natal_chart(
             birth_date=request.birth_date,
@@ -186,6 +240,13 @@ async def interpret_chart(
             "timezone": request.timezone
         }
         
+        logger.info(
+            f"Using template: {request.template_name}",
+            extra={
+                "template": request.template_name
+            }
+        )
+        
         # Render the interpretation
         interpretation = render_interpretation(
             db=db,
@@ -194,9 +255,27 @@ async def interpret_chart(
             template_name=request.template_name
         )
         
+        logger.info(
+            "Interpretation generated successfully",
+            extra={
+                "text_length": len(interpretation),
+                "template_used": request.template_name
+            }
+        )
+        
         return interpretation
     
     except Exception as e:
+        logger.error(
+            f"Interpretation failed: {str(e)}",
+            extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "birth_date": request.birth_date,
+                "template": request.template_name,
+                "traceback": traceback.format_exc()
+            }
+        )
         raise HTTPException(status_code=400, detail=f"Interpretation error: {str(e)}")
 
 
@@ -213,4 +292,77 @@ async def get_house_systems(
     Returns:
         Dictionary of house systems and descriptions
     """
-    return get_available_house_systems()
+    logger.info("House systems requested", extra={"api_key": api_key})
+    
+    try:
+        house_systems = get_available_house_systems()
+        logger.info(
+            "House systems retrieved successfully",
+            extra={"system_count": len(house_systems)}
+        )
+        return house_systems
+    
+    except Exception as e:
+        logger.error(
+            f"Failed to retrieve house systems: {str(e)}",
+            extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "traceback": traceback.format_exc()
+            }
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error while retrieving house systems"
+        )
+
+
+@router.get("/admin/keys")
+async def get_api_keys(
+    db: Session = Depends(get_db)
+):
+    """
+    Development endpoint to view available API keys
+    
+    THIS ENDPOINT SHOULD BE DISABLED IN PRODUCTION.
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        List of API keys in the system
+    """
+    logger.warning("Admin API key endpoint accessed")
+    
+    try:
+        api_keys = db.query(ApiKey).all()
+        
+        # Format the response to include only necessary information
+        return {
+            "api_keys": [
+                {
+                    "name": key.name,
+                    "key": key.key,
+                    "enabled": key.enabled,
+                    "rate_limit": key.rate_limit,
+                    "daily_limit": key.daily_limit,
+                    "created_at": key.created_at
+                }
+                for key in api_keys
+            ],
+            "usage_instructions": "Use the X-API-Key header with one of these keys to authenticate API requests."
+        }
+    
+    except Exception as e:
+        logger.error(
+            f"Failed to retrieve API keys: {str(e)}",
+            extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "traceback": traceback.format_exc()
+            }
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error while retrieving API keys"
+        )

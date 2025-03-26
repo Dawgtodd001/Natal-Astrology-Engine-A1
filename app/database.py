@@ -322,19 +322,34 @@ The Ascendant represents your outward personality and how others perceive you. W
     db.commit()
 
 def seed_api_keys(db):
-    """Add default API key to database"""
+    """Add default API keys to database"""
     from app.models import ApiKey
     import secrets
+    from datetime import datetime
     
-    # Generate a secure API key
-    api_key = ApiKey(
-        key=secrets.token_hex(32),
-        name="Default API Key",
+    # Create a fixed test API key for development
+    test_key = ApiKey(
+        key="test_key_1234567890",
+        name="Test API Key",
         enabled=True,
-        rate_limit=100
+        rate_limit=100,  # Requests per minute
+        daily_limit=1000,  # Requests per day
+        created_at=datetime.now().isoformat()
     )
     
-    db.add(api_key)
+    # Generate a secure API key for production use
+    secure_key = ApiKey(
+        key=secrets.token_hex(32),
+        name="Production API Key",
+        enabled=True,
+        rate_limit=60,  # Requests per minute
+        daily_limit=1000,  # Requests per day
+        created_at=datetime.now().isoformat()
+    )
+    
+    db.add_all([test_key, secure_key])
     db.commit()
     
-    print(f"Created default API key: {api_key.key}")
+    print(f"Created default API keys:")
+    print(f"- Test key: {test_key.key} (use this for development)")
+    print(f"- Production key: {secure_key.key}")
