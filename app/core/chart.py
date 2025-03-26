@@ -63,8 +63,22 @@ def create_natal_chart(
     # Get the appropriate house system code from our helper function
     hsys = get_house_system_code(house_system)
     
+    # Add logging for debugging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Using house system: {house_system}, code: {hsys}")
+    
     # Create the chart with the proper house system code
-    chart = Chart(date, pos, hsys=hsys, IDs=const.LIST_OBJECTS)
+    try:
+        # Flatlib directly accepts the house system as a single letter in the hsys parameter
+        # We don't need to use constants, we just pass the letter as a string
+        logger.info(f"Using flatlib house system code directly: {hsys}")
+        
+        chart = Chart(date, pos, hsys=hsys, IDs=const.LIST_OBJECTS)
+    except Exception as e:
+        logger.error(f"Error creating chart: {str(e)}")
+        logger.error(f"Date: {date}, Pos: {pos}, hsys: {hsys}, IDs: {const.LIST_OBJECTS}")
+        raise
     
     # Extract planetary positions
     planets = []

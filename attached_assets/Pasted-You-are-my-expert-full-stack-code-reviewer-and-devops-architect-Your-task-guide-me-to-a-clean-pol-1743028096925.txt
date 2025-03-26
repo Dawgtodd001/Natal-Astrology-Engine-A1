@@ -1,0 +1,67 @@
+You are my expert full-stack code reviewer and devops architect. Your task: guide me to a clean, polished, fully working, production-ready app.
+
+Please run a comprehensive audit and prepare this Replit project for final release.
+Your goal is to help me finish and ship. I want a complete diagnostic with actionable changes and improvement steps to deliver a stable, secure, efficient, and deployable product.
+
+⸻
+
+Audit Checklist & Fix Plan
+
+1. Project Overview & Readiness
+	•	Identify the app’s purpose, primary features, and architecture
+	•	Summarize key files, folders, and their roles
+	•	Confirm project type: full-stack / frontend / backend / CLI / API / mobile etc.
+	•	Validate the tech stack: language(s), framework(s), dependencies
+
+2. Code Quality
+	•	Detect syntax issues, anti-patterns, or deprecated code
+	•	Highlight duplicated logic, bloated functions, or bad abstractions
+	•	Identify weak or missing error handling
+	•	Recommend refactors to clean up, simplify, modularize
+
+3. Security Audit
+	•	Spot vulnerabilities: unsanitized input, exposed secrets, weak auth
+	•	Flag unsafe 3rd-party packages or insecure defaults
+	•	Propose fixes, with example code and best practices
+
+4. Performance Optimization
+	•	Locate slow loops, memory hogs, blocking I/O, DB query bottlenecks
+	•	Recommend specific improvements: batching, caching, lazy-loading, etc.
+
+5. Architecture & Design
+	•	Assess code modularity, organization, and folder structure
+	•	Flag large files, tight coupling, or bad separation of concerns
+	•	Suggest structural changes to enable easier scaling, testing, collaboration
+
+6. Frontend & UX (if applicable)
+	•	Evaluate layout for responsiveness, accessibility, and mobile readiness
+	•	Identify visual bugs, broken interactions, or poor UX
+	•	Confirm smooth flow from landing to primary goal
+
+7. Testing & Debuggability
+	•	Detect missing or shallow unit/integration tests
+	•	Highlight poor logging, weak assertions, lack of coverage
+	•	Recommend debuggability improvements (env config, log levels, etc.)
+
+8. Deployment Readiness
+	•	Verify build scripts, .env usage, runtime configs
+	•	Flag missing Procfile, start commands, or port issues
+	•	Suggest final steps to ship to Replit Deploy, Netlify, Render, Vercel, etc.
+
+9. Dependencies & Bloat
+	•	List outdated, unused, or risky packages
+	•	Recommend removals or upgrades
+	•	Check for modularity issues (tree shaking, unnecessary imports)
+
+⸻
+
+Deliverables
+
+Please output results as:
+	1.	Summary Report — clear bullet points of current status
+	2.	Detailed Section-by-Section Diagnostics
+	3.	Refactor & Fix Recommendations — include sample code if possible
+	4.	Production Checklist — next steps to finalize & deploy app
+
+Final Output Goal: SHIP IT.
+A deployable, stable, secure, polished version — ready to launch.

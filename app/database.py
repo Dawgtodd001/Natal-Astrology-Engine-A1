@@ -13,8 +13,15 @@ DATABASE_URL = os.getenv(
     f"postgresql://{os.getenv('PGUSER')}:{os.getenv('PGPASSWORD')}@{os.getenv('PGHOST')}:{os.getenv('PGPORT')}/{os.getenv('PGDATABASE')}"
 )
 
-# Create SQLAlchemy engine
-engine = create_engine(DATABASE_URL)
+# Create SQLAlchemy engine with connection pooling
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,             # Check connection before use
+    pool_recycle=300,               # Recycle connections after 5 minutes
+    pool_size=5,                    # Set a reasonable pool size 
+    max_overflow=10,                # Allow some overflow connections
+    connect_args={"sslmode": "require"}  # Ensure SSL connections
+)
 
 # Create a session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
