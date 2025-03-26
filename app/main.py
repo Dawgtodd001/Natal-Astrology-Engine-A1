@@ -12,6 +12,7 @@ from app.api.endpoints import router as api_router
 from app.api.middlewares import setup_middlewares
 from app.database import init_db
 from app.utils.logging import setup_logging, get_logger
+from app.utils.error_handling import handle_exception, ErrorCodes
 
 # Set up structured logging
 setup_logging(level=logging.INFO)
@@ -24,6 +25,15 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
+)
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.environ.get("ALLOWED_ORIGINS", "*").split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Set up middlewares

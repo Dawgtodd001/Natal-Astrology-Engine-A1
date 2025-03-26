@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Text, Float, Boolean, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, Text, Float, Boolean, ForeignKey, Enum, schema
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+import sqlalchemy
 
 Base = declarative_base()
 
@@ -30,6 +31,11 @@ class PlanetInterpretation(Base):
     sign = Column(String(20), nullable=False, index=True)
     interpretation = Column(Text, nullable=False)
     
+    # Composite index for faster lookups by planet-sign combination
+    __table_args__ = (
+        sqlalchemy.schema.Index('idx_planet_sign', 'planet', 'sign'),
+    )
+    
     def __repr__(self):
         return f"<PlanetInterpretation {self.planet} in {self.sign}>"
 
@@ -42,6 +48,11 @@ class HouseInterpretation(Base):
     planet = Column(String(20), nullable=False, index=True)
     house = Column(Integer, nullable=False, index=True)
     interpretation = Column(Text, nullable=False)
+    
+    # Composite index for faster lookups by planet-house combination
+    __table_args__ = (
+        schema.Index('idx_planet_house', 'planet', 'house'),
+    )
     
     def __repr__(self):
         return f"<HouseInterpretation {self.planet} in house {self.house}>"
@@ -57,6 +68,11 @@ class AspectInterpretation(Base):
     aspect_type = Column(String(20), nullable=False, index=True)
     interpretation = Column(Text, nullable=False)
     
+    # Composite index for faster lookups by planet1-planet2-aspect_type combination
+    __table_args__ = (
+        schema.Index('idx_planets_aspect', 'planet1', 'planet2', 'aspect_type'),
+    )
+    
     def __repr__(self):
         return f"<AspectInterpretation {self.planet1} {self.aspect_type} {self.planet2}>"
 
@@ -66,16 +82,22 @@ class ChartCalculation(Base):
     __tablename__ = "chart_calculations"
     
     id = Column(Integer, primary_key=True, index=True)
-    birth_date = Column(String(10), nullable=False)
-    birth_time = Column(String(5), nullable=False)
+    birth_date = Column(String(10), nullable=False, index=True)
+    birth_time = Column(String(5), nullable=False, index=True)
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
     timezone = Column(String(50), nullable=False)
-    house_system = Column(String(20), default="placidus")
-    zodiac_type = Column(String(20), default="tropical")
-    calculation_timestamp = Column(String(26), nullable=False)
+    house_system = Column(String(20), default="placidus", index=True)
+    zodiac_type = Column(String(20), default="tropical", index=True)
+    calculation_timestamp = Column(String(26), nullable=False, index=True)
     cache_key = Column(String(64), nullable=True, index=True, unique=True)
     result_json = Column(Text, nullable=True)
+    
+    # Composite index for faster lookups by chart data
+    __table_args__ = (
+        schema.Index('idx_chart_params', 'birth_date', 'birth_time', 'house_system', 'zodiac_type'),
+        schema.Index('idx_chart_timestamp', 'calculation_timestamp'),
+    )
     
     def __repr__(self):
         return f"<ChartCalculation {self.birth_date} {self.birth_time}>"

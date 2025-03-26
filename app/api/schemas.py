@@ -1,11 +1,15 @@
 """
 Pydantic schemas for API request and response validation
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Generic, TypeVar
 from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic.generics import GenericModel
 import re
 import pytz
 from app.core.utils.timezone import resolve_timezone
+
+# Generic type for pagination
+T = TypeVar('T')
 
 
 class ChartRequest(BaseModel):
@@ -153,3 +157,58 @@ class ChartInterpretationRequest(ChartRequest):
     Extends ChartRequest with template options
     """
     template_name: str = Field("basic_text", description="Name of interpretation template to use")
+
+
+class PaginationParams(BaseModel):
+    """
+    Parameters for paginated requests
+    """
+    page: int = Field(1, description="Page number (1-indexed)", ge=1)
+    page_size: int = Field(10, description="Number of items per page", ge=1, le=100)
+
+
+class PageInfo(BaseModel):
+    """
+    Pagination metadata
+    """
+    current_page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
+
+class PaginatedResponse(GenericModel, Generic[T]):
+    """
+    Generic paginated response
+    """
+    items: List[T]
+    page_info: PageInfo
+
+
+class ApiKeyResponse(BaseModel):
+    """
+    API key information for admin responses
+    """
+    name: str
+    key: str
+    enabled: bool
+    rate_limit: int
+    daily_limit: int
+    created_at: Optional[str]
+    
+    
+class ChartCalculationResponse(BaseModel):
+    """
+    Chart calculation record for admin responses
+    """
+    id: int
+    birth_date: str
+    birth_time: str
+    latitude: float
+    longitude: float
+    timezone: str
+    house_system: str
+    zodiac_type: str
+    calculation_timestamp: str
