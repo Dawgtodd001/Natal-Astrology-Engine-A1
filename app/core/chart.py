@@ -9,7 +9,7 @@ from flatlib.chart import Chart
 from flatlib import const
 
 from app.core.aspects import calculate_aspects
-from app.core.houses import calculate_houses
+from app.core.houses import get_house_system_code, calculate_houses
 
 
 def create_natal_chart(
@@ -60,8 +60,10 @@ def create_natal_chart(
     # Create GeoPos object
     pos = GeoPos(latitude, longitude)
     
-    # Create Chart object - use the first letter of house system
-    hsys = house_system[0].lower()  # Use lowercase first letter
+    # Get the appropriate house system code from our helper function
+    hsys = get_house_system_code(house_system)
+    
+    # Create the chart with the proper house system code
     chart = Chart(date, pos, hsys=hsys, IDs=const.LIST_OBJECTS)
     
     # Extract planetary positions
