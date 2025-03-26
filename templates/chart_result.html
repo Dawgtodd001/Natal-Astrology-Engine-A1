@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Natal Chart Results{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="alert alert-info">
+            <h2>Natal Chart for {{ birth_data.birth_date }} at {{ birth_data.birth_time }}</h2>
+            <p>Location: {{ birth_data.latitude }}° {% if birth_data.latitude >= 0 %}N{% else %}S{% endif %}, 
+               {{ birth_data.longitude }}° {% if birth_data.longitude >= 0 %}E{% else %}W{% endif %}
+               {% if birth_data.timezone %} ({{ birth_data.timezone }}){% endif %}
+            </p>
+            <p>House System: {{ birth_data.house_system|capitalize }}</p>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="h5 mb-0">Planetary Positions</h3>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Planet</th>
+                            <th>Sign</th>
+                            <th>Position</th>
+                            <th>House</th>
+                            <th>Retrograde</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for planet in chart.planets %}
+                        <tr>
+                            <td>{{ planet.name }}</td>
+                            <td>{{ planet.sign }}</td>
+                            <td>{{ planet.degree }}° {{ planet.minutes }}'</td>
+                            <td>{{ planet.house }}</td>
+                            <td>{% if planet.retrograde %}Yes{% else %}No{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="h5 mb-0">Houses</h3>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>House</th>
+                            <th>Sign</th>
+                            <th>Position</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for house in chart.houses %}
+                        <tr>
+                            <td>{{ house.number }}</td>
+                            <td>{{ house.sign }}</td>
+                            <td>{{ house.degree }}° {{ house.minutes }}'</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="h5 mb-0">Major Aspects</h3>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Planet 1</th>
+                            <th>Aspect</th>
+                            <th>Planet 2</th>
+                            <th>Orb</th>
+                            <th>Applying</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for aspect in chart.aspects %}
+                        <tr>
+                            <td>{{ aspect.planet1 }}</td>
+                            <td>{{ aspect.aspect_type|capitalize }}</td>
+                            <td>{{ aspect.planet2 }}</td>
+                            <td>{{ "%.1f"|format(aspect.orb) }}°</td>
+                            <td>{% if aspect.applying %}Yes{% else %}No{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="h5 mb-0">Chart Angles</h3>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Angle</th>
+                            <th>Sign</th>
+                            <th>Position</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for name, angle in chart.angles.items() %}
+                        <tr>
+                            <td>{{ name|capitalize }}</td>
+                            <td>{{ angle.sign }}</td>
+                            <td>{{ angle.degree }}° {{ angle.minutes }}'</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="d-flex justify-content-between">
+            <a href="{{ url_for('chart') }}" class="btn btn-secondary">Calculate New Chart</a>
+            <a href="{{ url_for('interpret') }}?use_existing=true" class="btn btn-primary">Get Interpretation</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

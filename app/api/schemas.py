@@ -56,8 +56,12 @@ class ChartRequest(BaseModel):
     @field_validator('timezone')
     def validate_timezone(cls, v):
         """Validate timezone name"""
-        if v is not None and v not in pytz.all_timezones:
-            raise ValueError(f"Invalid timezone: {v}")
+        if v is not None:
+            from app.core.utils.timezone import normalize_timezone
+            normalized = normalize_timezone(v)
+            if normalized not in pytz.all_timezones:
+                raise ValueError(f"Invalid timezone: {v}")
+            return normalized
         return v
         
     @model_validator(mode='after')

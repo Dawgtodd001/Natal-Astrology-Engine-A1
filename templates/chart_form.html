@@ -38,7 +38,7 @@
                     <div class="mb-3">
                         <label for="timezone" class="form-label">Timezone (optional)</label>
                         <input type="text" class="form-control" id="timezone" name="timezone">
-                        <div class="form-text">IANA timezone name (e.g., America/New_York). If left empty, will be auto-detected from coordinates.</div>
+                        <div class="form-text">IANA timezone name (e.g., America/New_York) or common name (e.g., Mountain Standard). If left empty, will be auto-detected from coordinates.</div>
                     </div>
                     
                     <div class="mb-3">
@@ -73,6 +73,9 @@
                 </div>
                 <div class="col-md-3 mb-2">
                     <button class="btn btn-outline-secondary w-100" onclick="fillLocation('Sydney', -33.8688, 151.2093)">Sydney</button>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <button class="btn btn-outline-secondary w-100" onclick="fillLocation('Boise', 43.6150, -116.2023)">Boise, Idaho</button>
                 </div>
             </div>
         </div>
