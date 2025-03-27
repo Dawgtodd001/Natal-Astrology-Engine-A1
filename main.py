@@ -383,11 +383,63 @@ def api_redirect():
     # In Replit environment, we need to use relative paths 
     # or the user's actual browser URL rather than localhost
     
-    # For Replit, this will be a path-relative URL to the docs page
-    # Make sure this URL matches the FastAPI docs configuration
-    docs_url = "/api/docs"
+    # For Replit, we need to construct the URL differently
+    # Based on the window location in the browser
     
-    return redirect(docs_url)
+    # Check if we're running on Replit
+    replit_domain = os.environ.get('REPL_SLUG')
+    if replit_domain:
+        # For Replit, generate a URL that will work in the browser
+        return redirect('/api-docs-proxy')
+    else:
+        # For local development
+        return redirect('http://localhost:8000/docs')
+        
+@app.route('/api-docs-proxy')
+def api_docs_proxy():
+    """HTML page that uses JavaScript to redirect to the correct API docs URL in Replit"""
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Redirecting to API Documentation</title>
+        <script>
+            // For Replit environment
+            function redirectToApiDocs() {
+                // In Replit, we need to use the correct URL format
+                // Get the current URL
+                var currentUrl = window.location.href;
+                
+                // Check if we're in the Replit environment
+                if (currentUrl.includes('.repl.co') || currentUrl.includes('.replit.dev')) {
+                    // In Replit, we can use a special URL format
+                    // The FastAPI docs are available at /docs in the service on port 8000
+                    var apiDocsUrl = currentUrl.replace(/:[0-9]+\\/api-docs-proxy/, ':8000/docs');
+                    
+                    // If there's no port in the URL (common in production Replit URLs)
+                    if (!apiDocsUrl.includes(':8000')) {
+                        apiDocsUrl = apiDocsUrl.replace('/api-docs-proxy', '')
+                                               .replace('.repl.co', '-8000.repl.co/docs')
+                                               .replace('.replit.dev', '-8000.replit.dev/docs');
+                    }
+                    
+                    // Redirect to the API docs
+                    window.location.href = apiDocsUrl;
+                } else {
+                    // For local development
+                    window.location.href = 'http://localhost:8000/docs';
+                }
+            }
+            
+            // Run the redirect function when the page loads
+            window.onload = redirectToApiDocs;
+        </script>
+    </head>
+    <body>
+        <p>Redirecting to API documentation...</p>
+    </body>
+    </html>
+    '''
 
 # Run the FastAPI application on a different port
 if __name__ == "__main__":
