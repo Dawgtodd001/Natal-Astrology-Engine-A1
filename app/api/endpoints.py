@@ -33,7 +33,7 @@ from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
 
 # Rate limiter instance
 rate_limiter = RateLimiter()

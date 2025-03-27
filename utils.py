@@ -23,17 +23,8 @@ logger.info(f"Using API endpoint: {API_BASE_URL}")
 def check_api_health():
     """Check if the API is healthy before making requests"""
     try:
-        # The health endpoint might be at /api/health or /api/api/health depending on the router configuration
-        # Try both paths
-        try:
-            response = requests.get(urljoin(API_BASE_URL, '/api/health'), timeout=2)
-            if response.status_code == 200:
-                return True
-        except requests.RequestException:
-            pass
-            
-        # Also try another path format if the first one fails
-        response = requests.get(urljoin(API_BASE_URL, '/api/api/health'), timeout=2)
+        # Check the health endpoint at /api/health
+        response = requests.get(urljoin(API_BASE_URL, '/api/health'), timeout=2)
         return response.status_code == 200
     except requests.RequestException:
         return False
@@ -56,7 +47,7 @@ def api_request(endpoint, data=None, method="POST", retry_count=3, retry_delay=0
         logger.error("API service unavailable, health check failed")
         return None
     
-    # Make sure we're using the right path for the API
+    # Construct the API URL with the correct path format
     url = urljoin(API_BASE_URL, f'/api/{endpoint}')
     headers = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
     

@@ -24,7 +24,9 @@ app = FastAPI(
     description="API for generating and interpreting astrological birth charts",
     version="1.0.0",
     docs_url="/api/docs",  # Update to match the router prefix
-    redoc_url="/api/redoc"  # Update to match the router prefix
+    redoc_url="/api/redoc",  # Update to match the router prefix
+    openapi_url="/api/openapi.json",  # Also update the OpenAPI schema URL
+    swagger_ui_oauth2_redirect_url="/api/docs/oauth2-redirect"  # Update OAuth redirect URL
 )
 
 # Configure CORS
