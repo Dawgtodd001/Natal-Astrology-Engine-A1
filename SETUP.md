@@ -71,6 +71,41 @@ python run.py
 gunicorn --bind 0.0.0.0:5000 --reload main:app
 ```
 
+### Docker Environment (Recommended)
+
+The project includes Docker configuration for easy setup and consistent environments:
+
+1. Make sure Docker and Docker Compose are installed on your system:
+   - [Docker Installation Guide](https://docs.docker.com/get-docker/)
+   - [Docker Compose Installation Guide](https://docs.docker.com/compose/install/)
+
+2. Configure environment variables:
+   - Copy `.env.example` to `.env` and modify as needed
+   - At minimum, configure your `DATABASE_URL`
+
+3. Start the Docker environment:
+   ```bash
+   # Start all services
+   ./docker-start.sh
+   
+   # The script will display URLs for accessing the web interface and API
+   # Web interface: http://localhost:5000
+   # API: http://localhost:8000
+   
+   # To view logs
+   docker-compose logs -f
+   
+   # To stop all services
+   ./docker-stop.sh
+   ```
+
+The Docker environment includes:
+- Web interface (Flask) on port 5000
+- API service (FastAPI) on port 8000
+- Redis cache service
+- Shared network for inter-service communication
+- Volume for Redis persistence
+
 ### Production Environment
 
 For production deployment, it's recommended to:
@@ -78,13 +113,14 @@ For production deployment, it's recommended to:
 1. Set `ENVIRONMENT=production`
 2. Set a secure `ADMIN_PASSWORD` or leave it unset to disable admin endpoints
 3. Configure `ALLOWED_ORIGINS` with specific allowed domains
-4. Use a production WSGI server like Gunicorn or uWSGI behind a reverse proxy
+4. Use Docker with appropriate security settings (see Docker section above)
+5. Configure a reverse proxy (like Nginx) for SSL termination
 
 ```bash
-# Example production startup with Gunicorn
+# Example production Docker deployment
 export ENVIRONMENT=production
 export ALLOWED_ORIGINS="https://yourdomain.com,https://admin.yourdomain.com"
-gunicorn --bind 0.0.0.0:5000 --workers 4 main:app
+docker-compose up -d
 ```
 
 ## API Key Management

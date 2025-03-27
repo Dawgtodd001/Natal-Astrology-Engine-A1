@@ -380,37 +380,33 @@ def cache_status():
     keys = []
     
     try:
-        # Check Redis health
-        response = requests.get(f"{API_BASE_URL}/api/cache/health")
-        if response.status_code == 200:
-            redis_available = response.json().get('available', False)
+        # Check Redis health - use the existing api_request utility to ensure proper URL construction
+        health_response, health_error = api_request("cache/health", method="GET", include_error_details=True)
+        if health_response and not health_error:
+            redis_available = health_response.get('available', False)
             
             if redis_available:
                 # Get Redis stats
-                stats_response = requests.get(
-                    f"{API_BASE_URL}/api/cache/stats",
-                    params={"admin_password": admin_password}
+                stats, stats_error = api_request(
+                    "cache/stats", 
+                    data={"admin_password": admin_password}, 
+                    method="GET", 
+                    include_error_details=True
                 )
                 
-                if stats_response.status_code == 200:
-                    stats = stats_response.json()
-                else:
-                    flash(f"Error retrieving Redis stats: {stats_response.text}", "danger")
+                if stats_error:
+                    flash(f"Error retrieving Redis stats: {stats_error.get('error_message', 'Unknown error')}", "danger")
                 
                 # Get Redis keys
-                keys_response = requests.get(
-                    f"{API_BASE_URL}/api/cache/keys",
-                    params={
-                        "admin_password": admin_password,
-                        "pattern": pattern,
-                        "limit": 50
-                    }
-                )
+                keys_params = {
+                    "admin_password": admin_password,
+                    "pattern": pattern,
+                    "limit": 50
+                }
+                keys, keys_error = api_request("cache/keys", data=keys_params, method="GET", include_error_details=True)
                 
-                if keys_response.status_code == 200:
-                    keys = keys_response.json()
-                else:
-                    flash(f"Error retrieving Redis keys: {keys_response.text}", "danger")
+                if keys_error:
+                    flash(f"Error retrieving Redis keys: {keys_error.get('error_message', 'Unknown error')}", "danger")
     except Exception as e:
         app.logger.error(f"Error accessing cache endpoints: {str(e)}")
         flash(f"Error accessing cache: {str(e)}", "danger")
@@ -434,16 +430,22 @@ def flush_cache():
         return redirect(url_for('index'))
     
     try:
-        # Call flush endpoint
-        response = requests.delete(
-            f"{API_BASE_URL}/api/cache/flush",
-            params={"admin_password": admin_password}
+        # Call flush endpoint with the api_request utility to ensure proper URL construction
+        # Use DELETE method with the api_request utility
+        result, error_info = api_request(
+            "cache/flush", 
+            data={"admin_password": admin_password}, 
+            method="DELETE", 
+            include_error_details=True
         )
         
-        if response.status_code == 200:
+        if result and not error_info:
             flash("Redis cache flushed successfully", "success")
         else:
-            flash(f"Error flushing Redis cache: {response.text}", "danger")
+            if error_info:
+                flash(f"Error flushing Redis cache: {error_info.get('error_message', 'Unknown error')}", "danger")
+            else:
+                flash("Error flushing Redis cache: No response from server", "danger")
     except Exception as e:
         app.logger.error(f"Error flushing cache: {str(e)}")
         flash(f"Error flushing cache: {str(e)}", "danger")

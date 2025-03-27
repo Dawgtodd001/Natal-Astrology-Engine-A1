@@ -53,7 +53,7 @@ The architecture follows a clean, modular design with clear separation of concer
 
 See [SETUP.md](SETUP.md) for detailed instructions on how to set up and run the API.
 
-Quick start:
+### Quick Start (Local Environment)
 
 ```bash
 # Clone repository
@@ -69,6 +69,34 @@ export DATABASE_URL="postgresql://username:password@localhost:5432/dbname"
 # Run the API
 python run.py
 ```
+
+### Using Docker (Recommended)
+
+The project includes Docker configuration for easy deployment and consistent environments:
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/natal-astrology-api.git
+cd natal-astrology-api
+
+# Copy example environment file and modify as needed
+cp .env.example .env
+
+# Start the Docker containers
+./docker-start.sh
+
+# Access the web interface at http://localhost:5000
+# Access the API at http://localhost:8000
+
+# To stop the containers
+./docker-stop.sh
+```
+
+Docker setup includes:
+- Web interface (Flask application)
+- API service (FastAPI)
+- Redis cache
+- Automatic environment setup
 
 ## Testing
 

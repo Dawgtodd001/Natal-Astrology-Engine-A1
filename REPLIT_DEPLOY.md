@@ -33,6 +33,8 @@ Before deploying, ensure the following:
 
 ## Deployment Steps
 
+### Option 1: Standard Replit Deployment
+
 1. **Set Up Replit Secrets (if needed)**:
    - If using OpenAI for interpretations, add your `OPENAI_API_KEY` as a secret
    - Add any other sensitive credentials as secrets
@@ -50,12 +52,40 @@ Before deploying, ensure the following:
    - The Flask frontend should be accessible at the root URL
    - The FastAPI backend should be accessible at /api
 
-4. **Post-Deployment Verification**:
-   - Check that the Flask frontend loads correctly
-   - Verify the FastAPI backend is responding to requests
-   - Test the geocoding functionality by looking up various locations
-   - Generate a sample chart to confirm calculations work
-   - Test timezone detection with different global locations
+### Option 2: Docker Deployment
+
+For better isolation and environment consistency, you can use Docker deployment:
+
+1. **Set Up Environment Variables**:
+   - Create a `.env` file based on `.env.example`
+   - Add your database credentials, API keys, and other configuration
+
+2. **Build and Deploy Docker Containers**:
+   - Make sure Docker and Docker Compose are installed on your deployment server
+   - Run the provided scripts to start the Docker environment:
+   ```bash
+   # Start all services
+   ./docker-start.sh
+   
+   # Monitor logs
+   docker-compose logs -f
+   ```
+
+3. **Configure for Production**:
+   - Set `ENVIRONMENT=production` in your `.env` file
+   - Set `ALLOWED_ORIGINS` to your specific domain(s)
+   - Consider using a reverse proxy like Nginx for SSL termination
+
+### Post-Deployment Verification
+
+Regardless of deployment method, verify your application:
+
+1. **Check that the Flask frontend loads correctly**
+2. **Verify the FastAPI backend is responding to requests**
+3. **Test the geocoding functionality by looking up various locations**
+4. **Generate a sample chart to confirm calculations work**
+5. **Test timezone detection with different global locations**
+6. **Verify that Redis caching is working properly (if enabled)**
 
 ## Troubleshooting
 
@@ -93,6 +123,30 @@ Before deploying, ensure the following:
    - Check logs for specific error messages in the API health check
    - Verify that both workflows (Flask and FastAPI) started successfully
    - If health checks consistently fail, restart both workflows
+
+### Docker-Specific Issues
+
+7. **Docker Services Not Starting**:
+   - Verify Docker and Docker Compose are installed and running
+   - Check Docker logs with `docker-compose logs -f`
+   - Ensure all required environment variables are set in your `.env` file
+   - Make sure ports 5000, 8000, and 6379 are available and not in use by other services
+
+8. **Redis Connection Issues in Docker**:
+   - Verify Redis service is running: `docker-compose ps redis`
+   - Check Redis logs: `docker-compose logs redis`
+   - Make sure the `REDIS_URL` in your `.env` file is set to `redis://redis:6379/0`
+   - The Redis container name must match the hostname in the Redis URL
+
+9. **Container Networking Problems**:
+   - Services must be on the same Docker network to communicate
+   - Verify network settings in `docker-compose.yml`
+   - Try accessing services using Docker service names instead of localhost
+
+10. **Docker Volume Persistence**:
+    - Redis data is stored in a Docker volume
+    - Make sure the volume is properly defined in `docker-compose.yml`
+    - If Redis data is not persisting, check volume mount configuration
 
 ## Scaling Considerations
 
