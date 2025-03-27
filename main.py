@@ -19,8 +19,35 @@ app = Flask(__name__,
 # Setup a secret key, required by sessions
 app.secret_key = os.environ.get("SESSION_SECRET") or "natal_astrology_web_secret_key"
 
+# Secure session configuration
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') != 'development'  # Secure in production
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access to session cookie
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Provides CSRF protection for most cases
+app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # Session lifetime of 24 hours
+
 # Setup CSRF protection
 csrf = CSRFProtect(app)
+
+# Security headers middleware
+@app.after_request
+def add_security_headers(response):
+    """Add security headers to response"""
+    # Helps prevent XSS attacks
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    # Helps prevent clickjacking
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    # Enable the XSS filter built into modern browsers
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    # Set strict Content Security Policy (CSP)
+    csp_policy = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "img-src 'self' data:; "
+        "font-src 'self' https://cdn.jsdelivr.net; "
+    )
+    response.headers['Content-Security-Policy'] = csp_policy
+    return response
 
 # CSRF error handler
 @app.errorhandler(CSRFError)
