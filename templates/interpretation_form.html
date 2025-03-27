@@ -41,6 +41,27 @@
                         <div class="form-text">Select the template style for your interpretation.</div>
                     </div>
                     
+                    <div class="mb-3 border p-3 rounded ai-options">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="use_ai" name="use_ai" value="true">
+                            <label class="form-check-label fw-bold" for="use_ai">
+                                Use AI-Powered Interpretation
+                            </label>
+                            <div class="form-text">Generate a more detailed and personalized interpretation using OpenAI.</div>
+                        </div>
+                        
+                        <div id="ai-style-container" class="mt-3 ps-4" style="display: none;">
+                            <label for="ai_style" class="form-label">AI Interpretation Style</label>
+                            <select class="form-select" id="ai_style" name="ai_style">
+                                <option value="detailed" selected>Detailed - Comprehensive astrological analysis</option>
+                                <option value="concise">Concise - Brief summary of key points</option>
+                                <option value="spiritual">Spiritual - Focus on soul purpose and growth</option>
+                                <option value="psychological">Psychological - Focus on personality traits and patterns</option>
+                            </select>
+                            <div class="form-text">Choose the style and focus of your AI-generated interpretation.</div>
+                        </div>
+                    </div>
+                    
                     <div class="mb-3">
                         <label for="house_system" class="form-label">House System</label>
                         <select class="form-select" id="house_system" name="house_system">
@@ -83,7 +104,19 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Add any client-side validation or dynamic behavior here
+        // Toggle AI style options when AI checkbox changes
+        const useAiCheckbox = document.getElementById('use_ai');
+        const aiStyleContainer = document.getElementById('ai-style-container');
+        
+        if (useAiCheckbox && aiStyleContainer) {
+            useAiCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    aiStyleContainer.style.display = 'block';
+                } else {
+                    aiStyleContainer.style.display = 'none';
+                }
+            });
+        }
     });
 </script>
 {% endblock %}

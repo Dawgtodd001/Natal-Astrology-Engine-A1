@@ -287,9 +287,11 @@ class TransitRequest(BaseModel):
 class ChartInterpretationRequest(ChartRequest):
     """
     Request model for chart interpretation
-    Extends ChartRequest with template options
+    Extends ChartRequest with template and AI options
     """
     template_name: str = Field("basic_text", description="Name of interpretation template to use")
+    use_ai: bool = Field(False, description="Whether to use AI-powered interpretation")
+    ai_style: Optional[str] = Field(None, description="AI interpretation style (concise, detailed, spiritual, psychological)")
 
 
 class PaginationParams(BaseModel):

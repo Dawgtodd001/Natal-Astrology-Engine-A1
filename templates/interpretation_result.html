@@ -43,6 +43,20 @@
                                     <span>House System:</span>
                                     <span class="badge bg-primary">{{ birth_data.get('house_system', 'placidus')|capitalize }}</span>
                                 </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>Template:</span>
+                                    <span class="badge bg-primary">{{ birth_data.get('template_name', 'basic_text')|replace('_', ' ')|capitalize }}</span>
+                                </li>
+                                {% if birth_data.get('use_ai', False) %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>AI-Enhanced:</span>
+                                    <span class="badge bg-success">Yes</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>AI Style:</span>
+                                    <span class="badge bg-info">{{ birth_data.get('ai_style', 'detailed')|capitalize }}</span>
+                                </li>
+                                {% endif %}
                             {% else %}
                                 <li class="list-group-item">
                                     <span>Birth data information not available in detail</span>

@@ -20,4 +20,5 @@ dependencies = [
     "sqlalchemy>=2.0.39",
     "timezonefinder>=6.5.9",
     "uvicorn>=0.34.0",
+    "openai>=1.68.2",
 ]

@@ -199,9 +199,11 @@ def interpret():
                     flash("Invalid chart data in session. Please generate a new chart.", "warning")
                     return redirect(url_for('chart'))
                 
-                # Add template name to the data
+                # Add template name and AI options to the data
                 birth_data["template_name"] = request.form.get('template_name', 'basic_text')
                 birth_data["house_system"] = request.form.get('house_system', 'placidus')
+                birth_data["use_ai"] = request.form.get('use_ai') == 'true'
+                birth_data["ai_style"] = request.form.get('ai_style', 'detailed')
             else:
                 # Extract new form data
                 # Safely convert latitude and longitude to float with default values if missing
@@ -221,7 +223,9 @@ def interpret():
                     "latitude": lat_float,
                     "longitude": lng_float,
                     "house_system": request.form.get('house_system', 'placidus'),
-                    "template_name": request.form.get('template_name', 'basic_text')
+                    "template_name": request.form.get('template_name', 'basic_text'),
+                    "use_ai": request.form.get('use_ai') == 'true',
+                    "ai_style": request.form.get('ai_style', 'detailed')
                 }
                 
                 # Optional timezone field

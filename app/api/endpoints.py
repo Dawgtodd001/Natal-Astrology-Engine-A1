@@ -403,20 +403,61 @@ async def interpret_chart(
             "timezone": request.timezone
         }
         
-        logger.info(
-            f"Using template: {request.template_name}",
-            extra={
-                "template": request.template_name
-            }
-        )
-        
-        # Render the interpretation
-        interpretation = render_interpretation(
-            db=db,
-            chart_data=chart_data,
-            birth_info=birth_info,
-            template_name=request.template_name
-        )
+        # Check if using AI-powered interpretation
+        if request.use_ai:
+            try:
+                from app.ai.openai_integration import generate_chart_interpretation
+                
+                logger.info(
+                    f"Using AI interpretation with style: {request.ai_style or 'detailed'}",
+                    extra={
+                        "ai_style": request.ai_style or "detailed",
+                        "use_ai": True
+                    }
+                )
+                
+                # Generate AI interpretation
+                interpretation = generate_chart_interpretation(
+                    chart_data=chart_data,
+                    birth_info=birth_info,
+                    style=request.ai_style or "detailed"
+                )
+                
+                logger.info("AI interpretation generated successfully")
+                
+            except ImportError:
+                logger.warning("OpenAI integration not available, falling back to template-based interpretation")
+                interpretation = render_interpretation(
+                    db=db,
+                    chart_data=chart_data,
+                    birth_info=birth_info,
+                    template_name=request.template_name
+                )
+            except Exception as e:
+                logger.error(f"Error using AI interpretation: {str(e)}")
+                # Fall back to template-based interpretation
+                interpretation = render_interpretation(
+                    db=db,
+                    chart_data=chart_data,
+                    birth_info=birth_info,
+                    template_name=request.template_name
+                )
+                interpretation = f"AI interpretation failed ({str(e)}). Falling back to template:\n\n{interpretation}"
+        else:
+            logger.info(
+                f"Using template: {request.template_name}",
+                extra={
+                    "template": request.template_name
+                }
+            )
+            
+            # Render template-based interpretation
+            interpretation = render_interpretation(
+                db=db,
+                chart_data=chart_data,
+                birth_info=birth_info,
+                template_name=request.template_name
+            )
         
         logger.info(
             "Interpretation generated successfully",
