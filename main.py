@@ -381,14 +381,14 @@ def cache_status():
     
     try:
         # Check Redis health
-        response = requests.get(f"{API_BASE_URL}/api/cache/health")
+        response = requests.get(f"{API_BASE_URL}/cache/health")
         if response.status_code == 200:
             redis_available = response.json().get('available', False)
             
             if redis_available:
                 # Get Redis stats
                 stats_response = requests.get(
-                    f"{API_BASE_URL}/api/cache/stats",
+                    f"{API_BASE_URL}/cache/stats",
                     params={"admin_password": admin_password}
                 )
                 
@@ -399,7 +399,7 @@ def cache_status():
                 
                 # Get Redis keys
                 keys_response = requests.get(
-                    f"{API_BASE_URL}/api/cache/keys",
+                    f"{API_BASE_URL}/cache/keys",
                     params={
                         "admin_password": admin_password,
                         "pattern": pattern,
@@ -436,7 +436,7 @@ def flush_cache():
     try:
         # Call flush endpoint
         response = requests.delete(
-            f"{API_BASE_URL}/api/cache/flush",
+            f"{API_BASE_URL}/cache/flush",
             params={"admin_password": admin_password}
         )
         

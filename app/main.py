@@ -52,8 +52,8 @@ setup_middlewares(app)
 # This will make all routes, including the docs, available under /api prefix
 app.include_router(api_router, prefix="/api")
 
-# Include cache monitoring router under /api/cache
-app.include_router(cache_router, prefix="/api/cache", tags=["Cache Monitoring"])
+# Include cache monitoring router under /cache
+app.include_router(cache_router, prefix="/cache", tags=["Cache Monitoring"])
 
 # Mount static files
 try:
