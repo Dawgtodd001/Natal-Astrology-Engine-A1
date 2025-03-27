@@ -380,11 +380,12 @@ def edit_profile(profile_id):
 @app.route('/api-redirect')
 def api_redirect():
     """Redirect to the API documentation"""
-    # Use the configured API base URL from utils.py for consistency
-    from utils import API_BASE_URL
+    # In Replit environment, we need to use relative paths 
+    # or the user's actual browser URL rather than localhost
     
-    # Redirect to the docs URL at /api/docs
-    docs_url = f"{API_BASE_URL}/api/docs"
+    # For Replit, this will be a path-relative URL to the docs page
+    docs_url = "/api/docs"
+    
     return redirect(docs_url)
 
 # Run the FastAPI application on a different port

@@ -23,10 +23,20 @@ logger.info(f"Using API endpoint: {API_BASE_URL}")
 def check_api_health():
     """Check if the API is healthy before making requests"""
     try:
-        # Check the health endpoint at /api/health
-        response = requests.get(urljoin(API_BASE_URL, '/api/health'), timeout=2)
+        # If API_BASE_URL starts with http:// or https://, use it as a base URL
+        # Otherwise it's a relative path, so we need to use the current app's domain
+        if API_BASE_URL.startswith(('http://', 'https://')):
+            url = urljoin(API_BASE_URL, '/api/health')
+        else:
+            # For Replit, we can use relative paths when making browser requests,
+            # but for server-side requests, we need a full URL
+            # We'll use localhost for API calls made from the server
+            url = f"http://localhost:8000/api/health"
+            
+        response = requests.get(url, timeout=2)
         return response.status_code == 200
-    except requests.RequestException:
+    except requests.RequestException as e:
+        logger.warning(f"API health check failed: {e}")
         return False
 
 def api_request(endpoint, data=None, method="POST", retry_count=3, retry_delay=0.5):
@@ -48,7 +58,15 @@ def api_request(endpoint, data=None, method="POST", retry_count=3, retry_delay=0
         return None
     
     # Construct the API URL with the correct path format
-    url = urljoin(API_BASE_URL, f'/api/{endpoint}')
+    # If API_BASE_URL starts with http:// or https://, use it as a base URL with urljoin
+    # Otherwise, it's a relative path and we need to convert to an absolute URL for server-side requests
+    if API_BASE_URL.startswith(('http://', 'https://')):
+        url = urljoin(API_BASE_URL, f'/api/{endpoint}')
+    else:
+        # For Replit, we can use relative paths for browser requests,
+        # but for server-side requests from Python, we need a full URL
+        url = f"http://localhost:8000/api/{endpoint}"
+        
     headers = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
     
     for attempt in range(retry_count):
