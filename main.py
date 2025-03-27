@@ -81,18 +81,62 @@ def internal_server_error(e):
 API_BASE_URL = os.environ.get("API_BASE_URL") or "http://localhost:8000"
 API_KEY = os.environ.get("DEFAULT_API_KEY") or "test_key_1234567890"
 
-# Check API availability on startup
+# Global flag to track API availability
+api_available = False
+
+# Check API availability on startup and implement a retry mechanism
 def check_api_availability():
-    """Check if the FastAPI backend is available"""
-    if check_api_health():
-        app.logger.info("API service is available")
+    """
+    Check if the FastAPI backend is available
+    
+    Implements a retry mechanism with exponential backoff
+    """
+    global api_available
+    
+    # Try to connect to the API with more retries and longer initial delay for startup
+    if check_api_health(max_retries=8, initial_delay=2.0):
+        app.logger.info("✅ API service is available")
+        api_available = True
     else:
-        app.logger.warning("API service is not available. Some features may not work.")
+        app.logger.warning("⚠️ API service is not available. Some features may not work.")
+        api_available = False
+        
+    return api_available
 
 # Since Flask 2.0, before_first_request is removed, using a different approach
 # Run the check after the app is created using with app.app_context()
 with app.app_context():
-    threading.Thread(target=check_api_availability).start()
+    # Start in a background thread to avoid blocking app startup
+    api_check_thread = threading.Thread(target=check_api_availability)
+    api_check_thread.daemon = True  # Make thread exit when main thread exits
+    api_check_thread.start()
+    
+# Add a middleware to check API availability before each request
+@app.before_request
+def ensure_api_availability():
+    """
+    Middleware to ensure API is available before processing certain requests
+    Shows maintenance page if API is not available for chart-related pages
+    """
+    global api_available
+    
+    # List of routes that require the API to be available
+    api_dependent_routes = ['/chart', '/interpret', '/profiles']
+    
+    # Check if we're accessing a route that needs the API
+    if request.path in api_dependent_routes and not api_available:
+        # If the API check was never successful, try again
+        if check_api_availability():
+            # If now available, proceed with the request
+            return None
+        
+        # If still not available, show a maintenance page
+        flash("The astrological calculation service is currently starting up. " +
+              "Please try again in a few moments.", "warning")
+        return render_template('maintenance.html', title="Service Starting"), 503
+    
+    # Proceed with the request normally
+    return None
 
 # Routes
 @app.route('/')

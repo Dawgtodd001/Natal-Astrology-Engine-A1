@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title or 'Service Starting' }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-8">
+            <div class="card bg-dark border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h3 class="mb-0">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        Service Initialization
+                    </h3>
+                </div>
+                <div class="card-body text-center">
+                    <div class="my-4">
+                        <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        
+                        <h4 class="mb-4">The Astrological Service is Starting Up</h4>
+                        
+                        <p class="lead">
+                            The calculation engine is still initializing. This usually takes just a few moments.
+                        </p>
+                        
+                        <p>
+                            This page will automatically refresh and try again in <span id="countdown">10</span> seconds.
+                        </p>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <a href="javascript:window.location.reload()" class="btn btn-primary">
+                            <i class="fas fa-sync-alt"></i> Refresh Now
+                        </a>
+                        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary ms-2">
+                            <i class="fas fa-home"></i> Return to Home
+                        </a>
+                    </div>
+                </div>
+                <div class="card-footer text-muted">
+                    <small>
+                        If this message persists for more than a minute, please contact support.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Auto-refresh countdown
+    let countdown = 10;
+    const countdownElement = document.getElementById('countdown');
+    
+    function updateCountdown() {
+        countdown--;
+        if (countdownElement) {
+            countdownElement.textContent = countdown;
+        }
+        
+        if (countdown <= 0) {
+            window.location.reload();
+        } else {
+            setTimeout(updateCountdown, 1000);
+        }
+    }
+    
+    setTimeout(updateCountdown, 1000);
+</script>
+{% endblock %}

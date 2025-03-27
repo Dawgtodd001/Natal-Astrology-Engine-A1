@@ -11,12 +11,13 @@ This API service provides powerful astrological chart generation and interpretat
 - **Comprehensive Chart Calculation**: Generate detailed natal charts with accurate planetary positions, house cusps, aspects, and more.
 - **Multiple House Systems**: Support for seven house systems including Placidus, Koch, Regiomontanus, Campanus, Equal, Whole Sign, and Porphyry.
 - **Interpretation Engine**: Template-based interpretation system that provides personalized readings of chart elements.
-- **Automatic Timezone Detection**: Automatic determination of timezone from geographic coordinates.
+- **Enhanced Timezone Detection**: Improved algorithm for determining timezone from geographic coordinates with better accuracy.
+- **Intelligent Health Monitoring**: Advanced health check with exponential backoff and automatic retry mechanism.
+- **Graceful Service Degradation**: Maintenance mode that activates automatically when the API is starting up.
 - **Caching Mechanism**: Efficient caching of calculations to optimize performance.
 - **API Key Authentication**: Secure access control with API key authentication.
 - **Rate Limiting**: Built-in rate limiting to prevent abuse.
 - **Comprehensive Logging**: Structured logging for better observability and debugging.
-- **Health Monitoring**: Health check endpoint to monitor API status.
 
 ## Technical Architecture
 

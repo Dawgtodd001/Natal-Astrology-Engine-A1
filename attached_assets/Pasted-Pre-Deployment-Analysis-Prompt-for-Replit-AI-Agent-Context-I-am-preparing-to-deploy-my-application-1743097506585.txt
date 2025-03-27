@@ -1,0 +1,76 @@
+Pre-Deployment Analysis Prompt for Replit AI Agent
+
+Context:
+I am preparing to deploy my application on Replit. Please conduct a comprehensive Pre-Deployment Analysis. My goal is to ensure the app is stable, optimized, secure, and ready for deployment.
+
+⸻
+
+Analysis Objectives
+
+Evaluate the following categories:
+	1.	Code Quality and Maintainability
+	•	Perform a code review to detect any code smells, inefficient logic, or redundant code.
+	•	Ensure consistent coding style, proper comments, and clear documentation.
+	•	Verify best practices in design patterns and architectural decisions.
+	2.	Performance and Optimization
+	•	Analyze potential performance bottlenecks.
+	•	Identify areas to optimize memory, CPU usage, and storage consumption.
+	•	Check for database query optimization and efficient data handling.
+	3.	Error Handling and Logging
+	•	Confirm robust error handling across all components.
+	•	Ensure proper logging mechanisms are in place with meaningful error messages.
+	•	Verify logging levels (e.g., debug, info, warning, error) are appropriately used.
+	4.	Security and Vulnerability Assessment
+	•	Check for common vulnerabilities like SQL Injection, XSS, CSRF, and SSRF.
+	•	Ensure API endpoints have proper authentication and authorization mechanisms.
+	•	Verify environment variables and sensitive data are securely managed.
+	5.	Testing and Coverage
+	•	Validate the existence and effectiveness of unit, integration, and end-to-end tests.
+	•	Check for adequate test coverage across critical features.
+	•	Recommend additional test cases if coverage is insufficient.
+	6.	Dependencies and Packages
+	•	Audit dependencies for outdated or vulnerable packages using available tools.
+	•	Suggest alternative, more secure libraries if necessary.
+	•	Ensure that package versions are compatible.
+	7.	Configuration Management
+	•	Verify proper environment-specific configuration management.
+	•	Ensure .env files are excluded from version control.
+	•	Check for any hard-coded sensitive values.
+	8.	Deployment Readiness
+	•	Review Dockerfiles, Kubernetes manifests, or deployment scripts if applicable.
+	•	Ensure proper containerization and resource allocation.
+	•	Confirm CI/CD pipelines are correctly set up and validated.
+	9.	Monitoring and Logging
+	•	Confirm monitoring tools and dashboards are configured.
+	•	Ensure appropriate alerts are in place for key metrics.
+	•	Verify the ability to trace issues using logs.
+	10.	User Experience (Optional)
+	•	Provide feedback on UI/UX if applicable.
+	•	Identify any navigation issues or unresponsive components.
+	•	Suggest minor improvements for better usability.
+
+⸻
+
+Output Format
+
+Provide the analysis in the following format:
+	1.	Summary
+	•	High-level overview of the app’s readiness.
+	2.	Critical Issues
+	•	List of major blockers with recommended fixes.
+	3.	Medium and Low Priority Issues
+	•	Suggested improvements and optimizations.
+	4.	Actionable Checklist
+	•	Clear, step-by-step actions for me to follow before deployment.
+
+⸻
+
+Additional Context:
+	•	Provide feedback in plain, actionable language.
+	•	If specific code examples are relevant, include them.
+	•	Feel free to suggest relevant plugins, tools, or libraries for improvement.
+
+Once complete, summarize the final recommendation:
+	•	✅ Ready for Deployment
+	•	⚠️ Ready with Minor Fixes
+	•	❗ Not Ready - Critical Issues Detected

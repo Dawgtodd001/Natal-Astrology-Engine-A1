@@ -4,6 +4,7 @@ Utility functions for the Flask frontend
 import os
 import time
 import logging
+import random
 import requests
 from urllib.parse import urljoin
 from flask import flash, current_app
@@ -21,27 +22,56 @@ API_KEY = os.environ.get("DEFAULT_API_KEY") or "test_key_1234567890"
 
 logger.info(f"Using API endpoint: {API_BASE_URL}")
 
-def check_api_health():
-    """Check if the API is healthy before making requests"""
-    try:
-        url = f"{API_BASE_URL}/api/health"
-        logger.info(f"Checking API health at: {url}")
+def check_api_health(max_retries=5, initial_delay=1.0):
+    """
+    Check if the API is healthy before making requests
+    
+    Args:
+        max_retries: Maximum number of retry attempts
+        initial_delay: Initial delay between retries in seconds (will increase with exponential backoff)
         
-        # Set a longer timeout for initial connection
-        response = requests.get(url, timeout=3)
+    Returns:
+        bool: True if API is healthy, False otherwise
+    """
+    url = f"{API_BASE_URL}/api/health"
+    logger.info(f"Checking API health at: {url}")
+    
+    # Implement retry with exponential backoff
+    current_retry = 0
+    current_delay = initial_delay
+    
+    while current_retry < max_retries:
+        try:
+            # Set a reasonable timeout for the connection
+            response = requests.get(url, timeout=3)
+            
+            if response.status_code == 200:
+                logger.info("API health check successful")
+                return True
+            else:
+                logger.warning(f"API health check failed: Unexpected status code {response.status_code}")
+        except requests.RequestException as e:
+            logger.warning(f"API health check failed (attempt {current_retry+1}/{max_retries}): {e}")
+        except Exception as e:
+            logger.warning(f"API health check failed with unexpected error: {e}")
         
-        if response.status_code == 200:
-            logger.info("API health check successful")
-            return True
-        else:
-            logger.warning(f"API health check failed: Unexpected status code {response.status_code}")
+        # Increment retry counter
+        current_retry += 1
+        
+        # If we've exhausted all retries, return False
+        if current_retry >= max_retries:
+            logger.error(f"API health check failed after {max_retries} attempts")
             return False
-    except requests.RequestException as e:
-        logger.warning(f"API health check failed: {e}")
-        return False
-    except Exception as e:
-        logger.warning(f"API health check failed with unexpected error: {e}")
-        return False
+            
+        # Wait with exponential backoff before the next attempt
+        logger.info(f"Retrying in {current_delay:.1f} seconds...")
+        time.sleep(current_delay)
+        
+        # Increase the delay for the next retry (exponential backoff with jitter)
+        current_delay = min(initial_delay * (2 ** current_retry) + random.uniform(0, 0.5), 10.0)
+    
+    # Should never reach here, but just in case
+    return False
 
 def api_request(endpoint, data=None, method="POST", retry_count=3, retry_delay=0.5):
     """
