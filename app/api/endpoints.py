@@ -467,7 +467,8 @@ async def interpret_chart(
             }
         )
         
-        return interpretation
+        # Return the interpretation as a plaintext response
+        return PlainTextResponse(content=interpretation, media_type="text/plain")
     
     except ValueError as e:
         # Handle validation errors

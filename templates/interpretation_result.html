@@ -71,6 +71,11 @@
                         <div class="interpretation-content">
                             {{ interpretation|safe }}
                         </div>
+                    {% elif birth_data is mapping and birth_data.get('use_ai', False) %}
+                        <!-- For AI interpretations, format nicely with markdown -->
+                        <div class="interpretation-content markdown-content">
+                            <p>{{ interpretation|replace('\n\n', '</p><p>')|replace('\n', '<br>')|safe }}</p>
+                        </div>
                     {% else %}
                         <pre class="interpretation-content text-wrap">{{ interpretation }}</pre>
                     {% endif %}

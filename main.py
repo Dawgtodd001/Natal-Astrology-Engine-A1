@@ -241,7 +241,7 @@ def interpret():
             )
             
             if response.status_code == 200:
-                # Get the interpretation text directly
+                # Get the plain text interpretation directly from the response
                 interpretation = response.text
                 
                 # Explicitly log what we're passing to the template for debugging
