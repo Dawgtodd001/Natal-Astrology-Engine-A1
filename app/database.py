@@ -345,8 +345,8 @@ def seed_user_profiles(db):
         # Create Parker Todd's profile with admin privileges
         admin_profile = UserProfile(
             name="Parker Todd",
-            birth_date="1997-10-16",  # Replace with actual data if needed
-            birth_time="16:30",       # Replace with actual data if needed
+            birth_date="2000-04-11",  # April 11, 2000
+            birth_time="16:30",
             latitude=43.615,          # Boise, ID latitude
             longitude=-116.2023,      # Boise, ID longitude
             timezone="America/Boise",
@@ -358,7 +358,13 @@ def seed_user_profiles(db):
         db.commit()
         logger.info("Created admin profile for Parker Todd")
     else:
-        logger.info("Admin profile for Parker Todd already exists")
+        # Update the birth date if it's not correct
+        if profile.birth_date != "2000-04-11":
+            profile.birth_date = "2000-04-11"  # April 11, 2000
+            db.commit()
+            logger.info("Updated Parker Todd's birth date to April 11, 2000")
+        else:
+            logger.info("Admin profile for Parker Todd already exists")
 
 
 def seed_api_keys(db):

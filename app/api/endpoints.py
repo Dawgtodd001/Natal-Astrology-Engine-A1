@@ -434,6 +434,73 @@ async def get_user_profiles(
         handle_exception(e, error_code=ErrorCodes.DATABASE_ERROR)
 
 
+@router.put("/profiles/{profile_id}")
+async def update_user_profile(
+    profile_id: int,
+    profile_data: UserProfileResponse,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_api_key)
+):
+    """
+    Update a user profile
+    
+    Args:
+        profile_id: The ID of the profile to update
+        profile_data: Updated profile data
+        db: Database session
+        api_key: API key for authentication
+        
+    Returns:
+        Updated profile data
+    """
+    from app.models import UserProfile
+    
+    try:
+        logger.info(f"Profile update requested for ID: {profile_id}")
+        
+        # Find the profile
+        profile = db.query(UserProfile).filter(UserProfile.id == profile_id).first()
+        if not profile:
+            logger.warning(f"Profile with ID {profile_id} not found")
+            handle_exception(
+                Exception(f"Profile with ID {profile_id} not found"),
+                status_code=status.HTTP_404_NOT_FOUND,
+                error_code=ErrorCodes.INVALID_INPUT
+            )
+        
+        # Update profile fields
+        profile.name = profile_data.name
+        profile.birth_date = profile_data.birth_date
+        profile.birth_time = profile_data.birth_time
+        profile.latitude = profile_data.latitude
+        profile.longitude = profile_data.longitude
+        profile.timezone = profile_data.timezone
+        profile.notes = profile_data.notes
+        
+        # Save changes
+        db.commit()
+        
+        logger.info(f"Profile {profile_id} updated successfully")
+        
+        # Return updated profile
+        return UserProfileResponse(
+            id=profile.id,
+            name=profile.name,
+            birth_date=profile.birth_date,
+            birth_time=profile.birth_time,
+            latitude=profile.latitude,
+            longitude=profile.longitude,
+            timezone=profile.timezone,
+            notes=profile.notes,
+            is_admin=profile.is_admin,
+            created_at=profile.created_at
+        )
+    
+    except Exception as e:
+        logger.error(f"Error updating profile: {str(e)}")
+        handle_exception(e, error_code=ErrorCodes.DATABASE_ERROR)
+
+
 @router.get("/health")
 async def health_check(db: Session = Depends(get_db)):
     """

@@ -221,6 +221,72 @@ def profiles():
         flash(f"Error: {str(e)}", 'danger')
         return redirect(url_for('index'))
 
+
+@app.route('/profile/<int:profile_id>/edit', methods=['GET', 'POST'])
+def edit_profile(profile_id):
+    """Edit a user profile"""
+    # Get profile data
+    try:
+        # First get the profile
+        response = requests.get(
+            urljoin(API_BASE_URL, '/api/profiles'),
+            headers={"X-API-Key": API_KEY}
+        )
+        
+        if response.status_code != 200:
+            flash("Unable to retrieve profile data", 'warning')
+            return redirect(url_for('profiles'))
+        
+        profiles = response.json()
+        selected_profile = None
+        
+        # Find the requested profile
+        for profile in profiles:
+            if profile['id'] == profile_id:
+                selected_profile = profile
+                break
+                
+        if not selected_profile:
+            flash("Profile not found", 'warning')
+            return redirect(url_for('profiles'))
+            
+        # Handle form submission
+        if request.method == 'POST':
+            try:
+                # Extract form data
+                updated_profile = selected_profile.copy()
+                updated_profile['name'] = request.form.get('name')
+                updated_profile['birth_date'] = request.form.get('birth_date')
+                updated_profile['birth_time'] = request.form.get('birth_time')
+                updated_profile['latitude'] = float(request.form.get('latitude'))
+                updated_profile['longitude'] = float(request.form.get('longitude'))
+                updated_profile['timezone'] = request.form.get('timezone') or selected_profile['timezone']
+                updated_profile['notes'] = request.form.get('notes') or selected_profile['notes']
+                
+                # Update the profile via API
+                update_response = requests.put(
+                    urljoin(API_BASE_URL, f'/api/profiles/{profile_id}'),
+                    headers={"X-API-Key": API_KEY, "Content-Type": "application/json"},
+                    json=updated_profile
+                )
+                
+                if update_response.status_code == 200:
+                    flash("Profile updated successfully", 'success')
+                    return redirect(url_for('profiles'))
+                else:
+                    error_data = update_response.json()
+                    flash(f"Error updating profile: {error_data.get('detail', {}).get('message', 'Unknown error')}", 'danger')
+            
+            except Exception as e:
+                flash(f"Error updating profile: {str(e)}", 'danger')
+        
+        # Display edit form
+        return render_template('edit_profile.html', profile=selected_profile)
+        
+    except Exception as e:
+        flash(f"Error: {str(e)}", 'danger')
+        return redirect(url_for('profiles'))
+
 @app.route('/api-redirect')
 def api_redirect():
     """Redirect to the API documentation"""
