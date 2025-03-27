@@ -100,9 +100,15 @@ def start_fastapi_app():
         import uvicorn
         from fastapi import FastAPI
         
-        # Load the FastAPI app
-        from services.api_gateway.app import create_app
-        app = create_app()
+        # Load the FastAPI app 
+        try:
+            from services.api_gateway.app import create_app
+            app = create_app()
+        except ImportError as e:
+            logger.warning(f"Error importing API gateway: {str(e)}")
+            # Fallback to direct app creation if the import fails
+            from services.api_gateway.app_py import create_app
+            app = create_app()
         
         # Start the server with Uvicorn
         host = os.getenv("HOST", "0.0.0.0")
