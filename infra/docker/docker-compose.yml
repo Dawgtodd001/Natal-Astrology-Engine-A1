@@ -1,0 +1,135 @@
+version: '3.8'
+
+services:
+  # API Gateway
+  api-gateway:
+    build:
+      context: ../..
+      dockerfile: services/api-gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../services/api-gateway:/app/api-gateway
+      - ../../shared:/app/shared
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    networks:
+      - astrology-network
+
+  # Chart Calculation Service
+  chart-calculation:
+    build:
+      context: ../..
+      dockerfile: services/chart-calculation/Dockerfile
+    ports:
+      - "8001:8000"
+    volumes:
+      - ../../services/chart-calculation:/app/chart-calculation
+      - ../../shared:/app/shared
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    networks:
+      - astrology-network
+
+  # Interpretation Service
+  interpretation:
+    build:
+      context: ../..
+      dockerfile: services/interpretation/Dockerfile
+    ports:
+      - "8002:8000"
+    volumes:
+      - ../../services/interpretation:/app/interpretation
+      - ../../shared:/app/shared
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - redis
+    networks:
+      - astrology-network
+
+  # User Profile Service
+  user-profile:
+    build:
+      context: ../..
+      dockerfile: services/user-profile/Dockerfile
+    ports:
+      - "8003:8000"
+    volumes:
+      - ../../services/user-profile:/app/user-profile
+      - ../../shared:/app/shared
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    networks:
+      - astrology-network
+
+  # Web UI Service
+  web-ui:
+    build:
+      context: ../..
+      dockerfile: services/web-ui/Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - ../../services/web-ui:/app/web-ui
+      - ../../shared:/app/shared
+    environment:
+      - API_GATEWAY_URL=http://api-gateway:8000
+      - SESSION_SECRET=${SESSION_SECRET}
+    depends_on:
+      - api-gateway
+    networks:
+      - astrology-network
+
+  # Redis for caching and message broker
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - astrology-network
+
+  # Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../../infra/monitoring/prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
+    networks:
+      - astrology-network
+
+  # Grafana for dashboards
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../../infra/monitoring/grafana:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - astrology-network
+
+volumes:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  astrology-network:
+    driver: bridge

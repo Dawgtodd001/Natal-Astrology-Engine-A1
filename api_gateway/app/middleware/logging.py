@@ -1,237 +1,117 @@
 """
-Logging middleware for the API Gateway.
+Logging middleware for the API Gateway service
 
-This middleware logs requests and responses with detailed information
-for debugging and monitoring purposes.
+This middleware enhances request logging with structured information.
 """
 
 import time
+import uuid
 import logging
 import json
-from typing import Awaitable, Callable, Dict, List, Optional, Union
+from typing import Optional, Dict, Any, Callable
 
-from fastapi import Request, Response
+import fastapi
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp, Message
+from starlette.types import ASGIApp
 
-logger = logging.getLogger("api_gateway")
+from api_gateway.app.core.settings import settings
+from api_gateway.app.middleware.correlation import get_correlation_id
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 
-class RequestLoggingMiddleware(BaseHTTPMiddleware):
+class LoggingMiddleware(BaseHTTPMiddleware):
     """
-    Middleware that logs requests and responses with detailed information.
+    Middleware to enhance request logging with structured information
+    
+    This middleware:
+    1. Logs incoming requests with correlation ID, method, path, and client info
+    2. Logs outgoing responses with status code and response time
+    3. Structured logs for easier analysis
     """
     
-    def __init__(
-        self, 
-        app: ASGIApp,
-        log_request_body: bool = False,
-        log_response_body: bool = False,
-        sensitive_headers: Optional[List[str]] = None,
-        exclude_paths: Optional[List[str]] = None
-    ) -> None:
+    def __init__(self, app: ASGIApp):
         """
-        Initialize the middleware.
+        Initialize middleware
         
         Args:
             app: ASGI application
-            log_request_body: Whether to log request bodies
-            log_response_body: Whether to log response bodies
-            sensitive_headers: List of headers to mask in logs
-            exclude_paths: List of path prefixes to exclude from logging
         """
         super().__init__(app)
-        self.log_request_body = log_request_body
-        self.log_response_body = log_response_body
-        self.sensitive_headers = sensitive_headers or [
-            "authorization", "cookie", "set-cookie", "x-api-key"
-        ]
-        self.exclude_paths = exclude_paths or ["/static/", "/docs", "/redoc", "/openapi.json"]
         
-    async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
+    async def dispatch(self, request: fastapi.Request, call_next):
         """
-        Process a request and log request/response details.
+        Process request, logging request and response information
         
         Args:
-            request: Request object
-            call_next: Function to call the next middleware/handler
+            request: FastAPI request
+            call_next: Next middleware or endpoint handler
             
         Returns:
-            Response from the next middleware/handler
+            Response
         """
-        # Skip logging for excluded paths
-        if self._should_skip_logging(request.url.path):
-            return await call_next(request)
-            
-        # Get correlation ID if available (from CorrelationIdMiddleware)
-        correlation_id = getattr(request.state, "correlation_id", None)
-        request_id = correlation_id or "unknown"
+        # Get correlation ID from context
+        correlation_id = get_correlation_id()
         
-        # Start request timestamp
+        # Start timer
         start_time = time.time()
         
-        # Prepare request logging
-        request_info = {
-            "request_id": request_id,
-            "method": request.method,
-            "path": request.url.path,
-            "query_params": dict(request.query_params),
-            "headers": self._mask_sensitive_headers(dict(request.headers)),
-            "client": {
-                "ip": request.client.host if request.client else "unknown",
-                "port": request.client.port if request.client else 0,
-            },
-        }
-        
-        # Log request body if enabled and available
-        if self.log_request_body:
-            try:
-                # Store original request body
-                body = await request.body()
-                
-                # Log request body (assuming it's JSON)
-                try:
-                    if body:
-                        # Try to parse as JSON
-                        request_info["body"] = json.loads(body.decode())
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    # If not JSON, log as string or base64 if not text
-                    try:
-                        request_info["body"] = body.decode()
-                    except UnicodeDecodeError:
-                        import base64
-                        request_info["body"] = f"<binary data, base64 encoded: {base64.b64encode(body).decode()}>"
-                
-                # Re-create body stream for downstream consumers
-                async def receive():
-                    return {"type": "http.request", "body": body}
-                
-                request._receive = receive
-            except Exception as e:
-                logger.warning(f"Failed to log request body: {str(e)}")
-                
         # Log request
-        logger.info(f"API Gateway request received", extra={"request": request_info})
+        logger.info(
+            f"Request started",
+            extra={
+                "correlation_id": correlation_id,
+                "request": {
+                    "method": request.method,
+                    "path": request.url.path,
+                    "query_params": dict(request.query_params),
+                    "client_host": request.client.host if request.client else "unknown",
+                    "user_agent": request.headers.get("User-Agent", "unknown")
+                }
+            }
+        )
         
         # Process request
         try:
-            # Call next middleware
             response = await call_next(request)
             
-            # Calculate response time
+            # Calculate request duration
             duration_ms = (time.time() - start_time) * 1000
             
-            # Prepare response logging
-            response_info = {
-                "request_id": request_id,
-                "status_code": response.status_code,
-                "duration_ms": round(duration_ms, 2),
-                "headers": self._mask_sensitive_headers(dict(response.headers)),
-            }
-            
-            # Log response body if enabled
-            if self.log_response_body and not self._is_streaming_response(response):
-                try:
-                    # Get response body
-                    original_body = response.body
-                    response_info["body"] = self._format_response_body(original_body)
-                except Exception as e:
-                    logger.warning(f"Failed to log response body: {str(e)}")
-                    
-            # Log response
-            log_level = logging.INFO if response.status_code < 400 else logging.WARNING
-            logger.log(log_level, f"API Gateway response sent", extra={"response": response_info})
-            
-            return response
-        except Exception as exc:
-            # Calculate response time for error case
-            duration_ms = (time.time() - start_time) * 1000
-            
-            # Log exception
-            logger.exception(
-                f"API Gateway request failed", 
+            # Log successful response
+            logger.info(
+                f"Request completed",
                 extra={
-                    "request": request_info,
-                    "error": {
-                        "type": type(exc).__name__,
-                        "message": str(exc),
-                        "duration_ms": round(duration_ms, 2),
-                    },
+                    "correlation_id": correlation_id,
+                    "response": {
+                        "status_code": response.status_code,
+                        "duration_ms": round(duration_ms, 2)
+                    }
                 }
             )
+            
+            # Add X-Response-Time header
+            response.headers["X-Response-Time"] = f"{duration_ms:.2f}ms"
+            
+            return response
+        except Exception as e:
+            # Calculate request duration
+            duration_ms = (time.time() - start_time) * 1000
+            
+            # Log error
+            logger.error(
+                f"Request failed: {str(e)}",
+                extra={
+                    "correlation_id": correlation_id,
+                    "response": {
+                        "status_code": 500,
+                        "duration_ms": round(duration_ms, 2),
+                        "error": str(e)
+                    }
+                },
+                exc_info=True
+            )
+            
+            # Re-raise the exception
             raise
-            
-    def _mask_sensitive_headers(self, headers: Dict[str, str]) -> Dict[str, str]:
-        """
-        Mask sensitive header values for logging.
-        
-        Args:
-            headers: Dictionary of headers
-            
-        Returns:
-            Dictionary with sensitive headers masked
-        """
-        masked_headers = {}
-        for key, value in headers.items():
-            if key.lower() in self.sensitive_headers:
-                masked_headers[key] = "******"
-            else:
-                masked_headers[key] = value
-        return masked_headers
-        
-    def _should_skip_logging(self, path: str) -> bool:
-        """
-        Check if a path should be excluded from logging.
-        
-        Args:
-            path: Request path
-            
-        Returns:
-            True if path should be excluded, False otherwise
-        """
-        return any(path.startswith(prefix) for prefix in self.exclude_paths)
-        
-    def _is_streaming_response(self, response: Response) -> bool:
-        """
-        Check if a response is streaming.
-        
-        Args:
-            response: Response to check
-            
-        Returns:
-            True if response is streaming, False otherwise
-        """
-        # Check if the response content is streamed
-        return (
-            response.status_code == 206 or  # Partial content
-            "content-encoding" in [h.lower() for h in response.headers] or  # Compressed
-            "transfer-encoding" in [h.lower() for h in response.headers] or  # Chunked
-            not hasattr(response, "body")  # No body attribute
-        )
-        
-    def _format_response_body(self, body: bytes) -> Union[Dict, List, str]:
-        """
-        Format response body for logging.
-        
-        Args:
-            body: Response body bytes
-            
-        Returns:
-            Formatted body as JSON object, list, or string
-        """
-        if not body:
-            return ""
-            
-        try:
-            # Try to parse as JSON
-            return json.loads(body.decode())
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            # If not JSON, try to decode as string
-            try:
-                return body.decode()
-            except UnicodeDecodeError:
-                # If can't decode as string, return base64
-                import base64
-                return f"<binary data, base64 encoded: {base64.b64encode(body).decode()}>"

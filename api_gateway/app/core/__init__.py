@@ -1,3 +1,3 @@
 """
-Core module for the API Gateway service.
+Core application modules and utilities
 """

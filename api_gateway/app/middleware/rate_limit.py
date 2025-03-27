@@ -1,257 +1,199 @@
 """
-Rate limiting middleware for the API Gateway.
+Rate limiting middleware for the API Gateway service
 
-This middleware implements rate limiting for API requests based on the API key,
-client IP address, and endpoint-specific limits.
+This middleware implements rate limiting for API requests.
 """
 
 import time
 import logging
-import hashlib
-from typing import Awaitable, Callable, Dict, Optional, Tuple, Union
+import json
+import asyncio
+from typing import Optional, Dict, Any, Callable, Tuple, List
 
-from fastapi import Request, Response
+import fastapi
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
-from app.core.config import settings
+from api_gateway.app.core.settings import settings
+from api_gateway.app.middleware.correlation import get_correlation_id
 
-logger = logging.getLogger("api_gateway")
+# Initialize logger
+logger = logging.getLogger(__name__)
 
-# Simple in-memory rate limit store
-# In a production environment, this should be replaced with Redis or another
-# distributed cache to support horizontal scaling.
-# Structure: {key: (count, timestamp)}
-RATE_LIMIT_STORE: Dict[str, Tuple[int, float]] = {}
+# In-memory storage for rate limits (will be replaced with Redis in production)
+# Format: {ip_or_key: [(timestamp, count), ...]}
+RATE_LIMITS: Dict[str, List[Tuple[float, int]]] = {}
 
-# Rate limit window in seconds (default: 60 seconds)
-RATE_LIMIT_WINDOW = 60
-
-# Default rate limits
-DEFAULT_RATE_LIMIT = 60  # 60 requests per minute
+# Default rate limit: 60 requests per minute
+DEFAULT_LIMIT = settings.RATE_LIMIT_DEFAULT_LIMIT
+DEFAULT_WINDOW = settings.RATE_LIMIT_DEFAULT_WINDOW  # seconds
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
-    Middleware that implements rate limiting for API requests.
+    Middleware to implement rate limiting for API requests
+    
+    This middleware:
+    1. Identifies clients by API key or IP address
+    2. Tracks request counts within time windows
+    3. Rejects requests that exceed the rate limit
+    4. Adds rate limit headers to responses
     """
     
     def __init__(
         self, 
-        app, 
-        rate_limit_window: int = RATE_LIMIT_WINDOW,
-        default_rate_limit: int = DEFAULT_RATE_LIMIT,
-        exclude_paths: Optional[list] = None
+        app: fastapi.FastAPI,
+        limit: int = DEFAULT_LIMIT,
+        window: int = DEFAULT_WINDOW,
+        api_key_header: str = "X-API-Key",
+        limit_by_ip: bool = True
     ):
         """
-        Initialize middleware.
+        Initialize middleware
         
         Args:
-            app: ASGI application
-            rate_limit_window: Time window for rate limiting in seconds
-            default_rate_limit: Default rate limit for requests
-            exclude_paths: List of path prefixes to exclude from rate limiting
+            app: FastAPI application
+            limit: Maximum number of requests allowed in window
+            window: Time window in seconds
+            api_key_header: Header name for API key
+            limit_by_ip: Whether to limit by IP address or API key
         """
         super().__init__(app)
-        self.rate_limit_window = rate_limit_window
-        self.default_rate_limit = default_rate_limit
-        self.exclude_paths = exclude_paths or [
-            "/docs", 
-            "/redoc", 
-            "/openapi.json", 
-            "/metrics", 
-            "/health"
-        ]
-        
-    async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
+        self.limit = limit
+        self.window = window
+        self.api_key_header = api_key_header
+        self.limit_by_ip = limit_by_ip
+    
+    def get_client_id(self, request: fastapi.Request) -> str:
         """
-        Process a request and apply rate limiting.
+        Get client identifier for rate limiting
         
         Args:
-            request: Request object
-            call_next: Function to call the next middleware/handler
+            request: FastAPI request
             
         Returns:
-            Response from the next middleware/handler or a 429 Too Many Requests response
+            Client identifier string (API key or IP address)
         """
-        # Skip rate limiting for excluded paths
-        path = request.url.path
-        if self._should_skip_rate_limiting(path):
-            return await call_next(request)
+        # Try to get API key from header
+        api_key = request.headers.get(self.api_key_header)
+        
+        if api_key and not self.limit_by_ip:
+            # Use API key as identifier
+            return f"key:{api_key}"
+        else:
+            # Use IP address as identifier
+            client_host = request.client.host if request.client else "unknown"
+            return f"ip:{client_host}"
+    
+    def is_rate_limited(self, client_id: str) -> Tuple[bool, int, int]:
+        """
+        Check if client is rate limited
+        
+        Args:
+            client_id: Client identifier
             
+        Returns:
+            Tuple of (is_limited, current_requests, remaining_requests)
+        """
+        # Get current timestamps for client
+        now = time.time()
+        window_start = now - self.window
+        
+        # Initialize or clean expired entries
+        if client_id not in RATE_LIMITS:
+            RATE_LIMITS[client_id] = []
+        else:
+            # Remove expired timestamps
+            RATE_LIMITS[client_id] = [
+                (ts, count) for ts, count in RATE_LIMITS[client_id] 
+                if ts > window_start
+            ]
+        
+        # Calculate current count in window
+        current = sum(count for _, count in RATE_LIMITS[client_id])
+        
+        # Check if rate limited
+        is_limited = current >= self.limit
+        remaining = max(0, self.limit - current)
+        
+        return is_limited, current, remaining
+    
+    def update_rate_limit(self, client_id: str) -> None:
+        """
+        Update rate limit counter for client
+        
+        Args:
+            client_id: Client identifier
+        """
+        now = time.time()
+        
+        # Add new timestamp
+        if client_id in RATE_LIMITS:
+            RATE_LIMITS[client_id].append((now, 1))
+        else:
+            RATE_LIMITS[client_id] = [(now, 1)]
+    
+    async def dispatch(self, request: fastapi.Request, call_next):
+        """
+        Process request, applying rate limiting
+        
+        Args:
+            request: FastAPI request
+            call_next: Next middleware or endpoint handler
+            
+        Returns:
+            Response or 429 Too Many Requests
+        """
+        # Skip rate limiting for certain endpoints
+        path = request.url.path
+        if path.startswith("/metrics") or path.startswith("/health"):
+            return await call_next(request)
+        
         # Get client identifier
-        client_id = self._get_client_identifier(request)
-        
-        # Get API key info and rate limit details
-        api_key_info = getattr(request.state, "api_key", None)
-        
-        # Determine appropriate rate limit based on API key, route, etc.
-        rate_limit = self._get_rate_limit(request, api_key_info)
+        client_id = self.get_client_id(request)
         
         # Check rate limit
-        if not self._is_rate_limited(client_id, rate_limit):
-            # If not rate limited, proceed to next middleware
-            return await call_next(request)
-        else:
-            # If rate limited, return 429 Too Many Requests
-            return self._create_rate_limited_response(rate_limit)
+        is_limited, current, remaining = self.is_rate_limited(client_id)
+        
+        # If rate limited, return 429
+        if is_limited:
+            logger.warning(
+                f"Rate limit exceeded for client {client_id}",
+                extra={
+                    "correlation_id": get_correlation_id(),
+                    "client_id": client_id,
+                    "limit": self.limit,
+                    "window": self.window,
+                    "current": current
+                }
+            )
             
-    def _should_skip_rate_limiting(self, path: str) -> bool:
-        """
-        Check if a path should be excluded from rate limiting.
+            # Use starlette Response to avoid dependency cycle with FastAPI
+            from starlette.responses import JSONResponse
+            return JSONResponse(
+                status_code=HTTP_429_TOO_MANY_REQUESTS,
+                content={
+                    "error": "Too many requests",
+                    "message": f"Rate limit of {self.limit} requests per {self.window} seconds exceeded",
+                    "retry_after": self.window
+                },
+                headers={
+                    "X-RateLimit-Limit": str(self.limit),
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": str(int(time.time() + self.window)),
+                    "Retry-After": str(self.window)
+                }
+            )
         
-        Args:
-            path: Request path
-            
-        Returns:
-            True if rate limiting should be skipped, False otherwise
-        """
-        return any(path.startswith(prefix) for prefix in self.exclude_paths)
+        # Update rate limit
+        self.update_rate_limit(client_id)
         
-    def _get_client_identifier(self, request: Request) -> str:
-        """
-        Get a unique identifier for the client.
+        # Process request
+        response = await call_next(request)
         
-        Uses API key if available, otherwise falls back to IP address.
-        
-        Args:
-            request: Request object
-            
-        Returns:
-            Unique client identifier as a string
-        """
-        # Try to get the API key from the request state (set by AuthMiddleware)
-        api_key_info = getattr(request.state, "api_key", None)
-        
-        if api_key_info and isinstance(api_key_info, dict):
-            # If API key info is available, use the API key ID as the identifier
-            return f"api_key:{api_key_info.get('id', 'unknown')}"
-        else:
-            # Otherwise, use the client IP address
-            client_ip = request.client.host if request.client else "unknown"
-            
-            # Get path for more granular rate limiting
-            path = request.url.path
-            
-            # Create a combined identifier for IP-based rate limiting per path
-            return f"ip:{client_ip}:path:{hashlib.md5(path.encode()).hexdigest()[:16]}"
-            
-    def _get_rate_limit(self, request: Request, api_key_info: Optional[Dict]) -> int:
-        """
-        Determine the appropriate rate limit for this request.
-        
-        Order of precedence:
-        1. Route-specific rate limit
-        2. API key rate limit
-        3. Service-specific rate limit
-        4. Default rate limit
-        
-        Args:
-            request: Request object
-            api_key_info: API key information from AuthMiddleware
-            
-        Returns:
-            Rate limit as requests per minute
-        """
-        # 1. Check for route-specific rate limit
-        # In a real implementation, this would look up the route in the database
-        # and get the rate limit setting
-        
-        # 2. Check for API key rate limit
-        if api_key_info and isinstance(api_key_info, dict):
-            # Admin keys may have higher rate limits
-            if api_key_info.get("is_admin", False):
-                return settings.ADMIN_RATE_LIMIT or 1000
-                
-            # Use API key specific rate limit if available
-            api_key_rate_limit = api_key_info.get("rate_limit", 0)
-            if api_key_rate_limit > 0:
-                return api_key_rate_limit
-                
-        # 3. Check for service-specific rate limit
-        service = self._get_service_from_path(request.url.path)
-        if service == "chart":
-            return settings.CHART_SERVICE_RATE_LIMIT or 40
-        elif service == "interpretation":
-            return settings.INTERPRETATION_SERVICE_RATE_LIMIT or 20
-            
-        # 4. Fall back to default rate limit
-        return self.default_rate_limit
-        
-    def _is_rate_limited(self, client_id: str, rate_limit: int) -> bool:
-        """
-        Check if a client is rate limited.
-        
-        Args:
-            client_id: Unique client identifier
-            rate_limit: Maximum requests per minute
-            
-        Returns:
-            True if client is rate limited, False otherwise
-        """
-        current_time = time.time()
-        
-        # Get existing rate limit data
-        count, timestamp = RATE_LIMIT_STORE.get(client_id, (0, current_time))
-        
-        # If the window has expired, reset the counter
-        if current_time - timestamp > self.rate_limit_window:
-            RATE_LIMIT_STORE[client_id] = (1, current_time)
-            return False
-            
-        # Increment the counter
-        new_count = count + 1
-        RATE_LIMIT_STORE[client_id] = (new_count, timestamp)
-        
-        # Check if the client has exceeded the rate limit
-        return new_count > rate_limit
-        
-    def _create_rate_limited_response(self, rate_limit: int) -> Response:
-        """
-        Create a 429 Too Many Requests response.
-        
-        Args:
-            rate_limit: Current rate limit
-            
-        Returns:
-            Response object
-        """
-        from starlette.responses import JSONResponse
-        
-        # Calculate reset time
-        reset_seconds = self.rate_limit_window
-        
-        # Create response with appropriate headers
-        response = JSONResponse(
-            status_code=HTTP_429_TOO_MANY_REQUESTS,
-            content={
-                "detail": f"Rate limit exceeded. Maximum {rate_limit} requests per {self.rate_limit_window} seconds."
-            }
-        )
-        
-        # Add rate limit headers
-        response.headers["X-RateLimit-Limit"] = str(rate_limit)
-        response.headers["X-RateLimit-Reset"] = str(reset_seconds)
-        response.headers["Retry-After"] = str(reset_seconds)
+        # Add rate limit headers to response
+        response.headers["X-RateLimit-Limit"] = str(self.limit)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+        response.headers["X-RateLimit-Reset"] = str(int(time.time() + self.window))
         
         return response
-        
-    def _get_service_from_path(self, path: str) -> str:
-        """
-        Extract service name from the path.
-        
-        Args:
-            path: Request path
-            
-        Returns:
-            Service name
-        """
-        # Extract service from path (e.g., /api/v1/chart/ -> chart)
-        parts = path.strip("/").split("/")
-        if len(parts) >= 3 and parts[0] == "api" and parts[1].startswith("v"):
-            return parts[2]
-            
-        # Default service name
-        return "api_gateway"

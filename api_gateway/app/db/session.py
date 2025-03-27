@@ -1,127 +1,206 @@
 """
-Database session configuration for the API Gateway.
+Database session management for the API Gateway service
 
-This file sets up the database connection and provides session management.
+This module provides functions and classes for managing database sessions.
 """
 
-import os
 import logging
-from contextlib import contextmanager
-from functools import lru_cache
-from typing import Generator, Optional
+import contextlib
+from functools import wraps
+from typing import Iterator, AsyncIterator, Any, Dict, Optional, Callable, TypeVar, cast
 
 import sqlalchemy
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, AsyncEngine
+from sqlalchemy.orm import sessionmaker, Session
 
-from app.core.config import settings
+from api_gateway.app.core.settings import settings
 
-logger = logging.getLogger("api_gateway")
+# Get logger
+logger = logging.getLogger(__name__)
 
-# Create database engine based on configuration
-SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
+# Type variable for decorators
+T = TypeVar("T")
 
-# Check if we're using a SQLite database
-if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
-    engine = sqlalchemy.create_engine(
-        SQLALCHEMY_DATABASE_URL, 
-        connect_args={"check_same_thread": False},
+# Create engine based on configuration
+if settings.SQLALCHEMY_DATABASE_URI.startswith("postgresql+asyncpg"):
+    # Async engine for asyncpg
+    engine = create_async_engine(
+        settings.SQLALCHEMY_DATABASE_URI,
+        echo=settings.SQL_ECHO,
+        future=True,
         pool_pre_ping=True,
+        pool_recycle=settings.DATABASE_POOL_RECYCLE,
     )
+    
+    # Create async session factory
+    async_session_factory = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    
 else:
+    # Sync engine for other database types
     engine = sqlalchemy.create_engine(
-        SQLALCHEMY_DATABASE_URL,
-        pool_size=settings.DB_POOL_SIZE,
-        max_overflow=settings.DB_MAX_OVERFLOW,
-        pool_timeout=settings.DB_POOL_TIMEOUT,
-        pool_recycle=settings.DB_POOL_RECYCLE,
+        settings.SQLALCHEMY_DATABASE_URI,
+        echo=settings.SQL_ECHO,
+        future=True,
         pool_pre_ping=True,
+        pool_recycle=settings.DATABASE_POOL_RECYCLE,
+    )
+    
+    # Create sync session factory
+    session_factory = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=engine,
     )
 
-# Create a session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Create an async engine if async database access is needed
-if not SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
-    # For PostgreSQL, MySQL, etc., create an async engine
-    async_db_url = SQLALCHEMY_DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
-    async_engine = create_async_engine(
-        async_db_url,
-        pool_size=settings.DB_POOL_SIZE,
-        max_overflow=settings.DB_MAX_OVERFLOW,
-        pool_timeout=settings.DB_POOL_TIMEOUT,
-        pool_recycle=settings.DB_POOL_RECYCLE,
-        pool_pre_ping=True,
-    )
-    AsyncSessionLocal = sessionmaker(
-        async_engine, class_=AsyncSession, expire_on_commit=False, autoflush=False
-    )
-else:
-    # SQLite doesn't support async operations well
-    # Use standard engine with a warning
-    logger.warning("SQLite database doesn't support async operations efficiently")
-    AsyncSessionLocal = None
-
-
-def get_db() -> Generator[Session, None, None]:
+def get_db() -> Iterator[Session]:
     """
     Get a database session
+    Used as a dependency in FastAPI endpoints
     
-    Yields:
-        SQLAlchemy session that will be closed after usage
+    Returns:
+        SQLAlchemy database session that will be closed after usage
+        
+    Raises:
+        HTTPException: If database connection fails
     """
-    db = SessionLocal()
+    if not hasattr(get_db, "session_factory"):
+        raise RuntimeError("Database session factory not properly initialized")
+        
+    db = session_factory()
     try:
         yield db
+    except Exception as e:
+        logger.error(f"Database session error: {e}")
+        db.rollback()
+        raise
     finally:
         db.close()
 
 
-async def get_async_db() -> Generator[AsyncSession, None, None]:
+@contextlib.contextmanager
+def get_db_context() -> Iterator[Session]:
     """
-    Get an async database session
-    
-    Yields:
-        SQLAlchemy AsyncSession that will be closed after usage
-        
-    Raises:
-        RuntimeError: If async database is not configured
-    """
-    if AsyncSessionLocal is None:
-        raise RuntimeError("Async database access is not configured")
-        
-    async_session = AsyncSessionLocal()
-    try:
-        yield async_session
-    finally:
-        await async_session.close()
-
-
-@contextmanager
-def db_session():
-    """
-    Context manager for database sessions
-    
-    Yields:
-        SQLAlchemy session that will be committed or rolled back automatically
-    """
-    session = SessionLocal()
-    try:
-        yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
-
-
-@lru_cache()
-def get_engine():
-    """
-    Get the SQLAlchemy engine
+    Get a database session as a context manager
     
     Returns:
-        SQLAlchemy engine instance
+        SQLAlchemy database session that will be closed after usage
+        
+    Example:
+        with get_db_context() as db:
+            result = db.query(Model).all()
     """
-    return engine
+    if not hasattr(get_db, "session_factory"):
+        raise RuntimeError("Database session factory not properly initialized")
+        
+    db = session_factory()
+    try:
+        yield db
+    except Exception as e:
+        logger.error(f"Database session error: {e}")
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+async def get_async_db() -> AsyncIterator[AsyncSession]:
+    """
+    Get an async database session
+    Used as a dependency in FastAPI endpoints
+    
+    Returns:
+        SQLAlchemy async database session that will be closed after usage
+        
+    Raises:
+        HTTPException: If database connection fails
+    """
+    if not hasattr(get_async_db, "async_session_factory"):
+        raise RuntimeError("Async database session factory not properly initialized")
+        
+    async_db = async_session_factory()
+    try:
+        yield async_db
+    except Exception as e:
+        logger.error(f"Async database session error: {e}")
+        await async_db.rollback()
+        raise
+    finally:
+        await async_db.close()
+
+
+@contextlib.asynccontextmanager
+async def get_async_db_context() -> AsyncIterator[AsyncSession]:
+    """
+    Get an async database session as a context manager
+    
+    Returns:
+        SQLAlchemy async database session that will be closed after usage
+        
+    Example:
+        async with get_async_db_context() as db:
+            result = await db.execute(select(Model))
+    """
+    if not hasattr(get_async_db, "async_session_factory"):
+        raise RuntimeError("Async database session factory not properly initialized")
+        
+    async_db = async_session_factory()
+    try:
+        yield async_db
+    except Exception as e:
+        logger.error(f"Async database session error: {e}")
+        await async_db.rollback()
+        raise
+    finally:
+        await async_db.close()
+
+
+def with_db_session(func: Callable[..., T]) -> Callable[..., T]:
+    """
+    Decorator to provide a database session to a function
+    
+    Args:
+        func: Function to wrap
+        
+    Returns:
+        Wrapped function with database session as first argument
+        
+    Example:
+        @with_db_session
+        def get_user(db, user_id):
+            return db.query(User).filter(User.id == user_id).first()
+    """
+    @wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> T:
+        with get_db_context() as db:
+            return cast(T, func(db, *args, **kwargs))
+    return wrapper
+
+
+def async_with_db_session(func: Callable[..., T]) -> Callable[..., T]:
+    """
+    Decorator to provide an async database session to a function
+    
+    Args:
+        func: Async function to wrap
+        
+    Returns:
+        Wrapped async function with database session as first argument
+        
+    Example:
+        @async_with_db_session
+        async def get_user(db, user_id):
+            result = await db.execute(select(User).filter(User.id == user_id))
+            return result.scalar_one_or_none()
+    """
+    @wraps(func)
+    async def wrapper(*args: Any, **kwargs: Any) -> T:
+        async with get_async_db_context() as db:
+            return cast(T, await func(db, *args, **kwargs))
+    return wrapper

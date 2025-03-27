@@ -1,171 +1,294 @@
 """
-Main application for the API Gateway.
+Main FastAPI application for the API Gateway service
 
-This file initializes the FastAPI application, adds middleware,
-and includes routes for the API Gateway.
+This module provides the main FastAPI application for the API Gateway service.
 """
 
 import logging
+import os
+import sys
+import json
 import time
-from typing import Any, Dict, List, Optional
+import traceback
+from typing import Dict, Any, Optional, List, Callable
 
+# Prometheus metrics
 import prometheus_client
-from fastapi import FastAPI, Request
+
+# FastAPI imports
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html
-from starlette.exceptions import HTTPException
-from starlette.responses import HTMLResponse, Response
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_500_INTERNAL_SERVER_ERROR
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import RedirectResponse
+from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
 
-from app.core.config import settings
-from app.db.session import init_db
-from app.middleware.correlation import CorrelationIdMiddleware
-from app.middleware.logging import LoggingMiddleware
-from app.middleware.metrics import PrometheusMiddleware
-from app.middleware.auth import AuthMiddleware
-from app.middleware.rate_limit import RateLimitMiddleware
+# Import API router
+from api_gateway.app.api.api_v1.api import api_router
 
-# Import route modules
-# from app.api.routes import api_router
+# Import middleware
+from api_gateway.app.middleware.correlation import CorrelationMiddleware
+from api_gateway.app.middleware.metrics import PrometheusMiddleware
+from api_gateway.app.middleware.logging import LoggingMiddleware
+from api_gateway.app.middleware.auth import APIKeyMiddleware
+from api_gateway.app.middleware.rate_limit import RateLimitMiddleware
 
-# Setup logger
-logger = logging.getLogger("api_gateway")
+# Import settings
+from api_gateway.app.core.settings import settings
 
-# Create FastAPI application
-app = FastAPI(
-    title=settings.GATEWAY_NAME,
-    description="API Gateway for Natal Astrology Engine",
-    version="1.0.0",
-    docs_url=None,  # Disable default docs URL, we'll create a custom one
-    redoc_url=None,  # Disable default redoc URL
-    openapi_url="/openapi.json",
-)
+# Import database utilities
+from api_gateway.app.db.session import close_db_connections
+from api_gateway.app.db.init_db import init_db
 
-# Add middleware
-app.add_middleware(CorrelationIdMiddleware)
-app.add_middleware(LoggingMiddleware)
-app.add_middleware(PrometheusMiddleware)
-app.add_middleware(AuthMiddleware)
-if settings.REDIS_URL:  # Add rate limiting only if Redis is available
-    app.add_middleware(RateLimitMiddleware)
+# Get logger
+logger = logging.getLogger(__name__)
 
-# Add CORS middleware
-if settings.BACKEND_CORS_ORIGINS:
+
+def create_app() -> FastAPI:
+    """
+    Create and configure the FastAPI application
+    
+    Returns:
+        FastAPI: Configured FastAPI application
+    """
+    # Create FastAPI app with custom settings
+    app = FastAPI(
+        title=settings.APP_NAME,
+        description=settings.APP_DESCRIPTION,
+        version=settings.APP_VERSION,
+        docs_url=None,  # Disable default docs
+        redoc_url=None,  # Disable default redoc
+        openapi_url=settings.OPENAPI_URL if settings.APP_ENV != "production" else None,
+    )
+    
+    # Configure CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
+        allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=settings.CORS_ALLOW_METHODS,
+        allow_headers=settings.CORS_ALLOW_HEADERS,
     )
+    
+    # Add correlation ID middleware
+    app.add_middleware(CorrelationMiddleware)
+    
+    # Add Prometheus metrics middleware
+    if settings.ENABLE_METRICS:
+        app.add_middleware(PrometheusMiddleware)
+    
+    # Add logging middleware
+    app.add_middleware(LoggingMiddleware)
+    
+    # Add API Key middleware
+    app.add_middleware(APIKeyMiddleware)
+    
+    # Add rate limiting middleware
+    if settings.RATE_LIMIT_ENABLED:
+        app.add_middleware(RateLimitMiddleware)
+    
+    # Include API router
+    app.include_router(api_router, prefix="/api/v1")
+    
+    # Add exception handlers
+    app.add_exception_handler(Exception, global_exception_handler)
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    
+    # Add custom endpoints
+    add_custom_endpoints(app)
+    
+    # Add event handlers
+    app.add_event_handler("startup", startup_event)
+    app.add_event_handler("shutdown", shutdown_event)
+    
+    # Log app initialization
+    logger.info(f"API Gateway {settings.APP_VERSION} initialized in {settings.APP_ENV} mode")
+    
+    return app
 
 
-# Startup event
-@app.on_event("startup")
+def add_custom_endpoints(app: FastAPI) -> None:
+    """
+    Add custom endpoints to the application
+    
+    Args:
+        app: FastAPI application
+    """
+    # Root endpoint
+    @app.get("/", include_in_schema=False)
+    async def root():
+        return RedirectResponse(url="/docs" if settings.APP_ENV != "production" else "/api/v1")
+    
+    # Custom Swagger UI endpoint
+    @app.get("/docs", include_in_schema=False)
+    async def custom_swagger_ui_html():
+        return get_swagger_ui_html(
+            openapi_url=settings.OPENAPI_URL,
+            title=f"{settings.APP_NAME} - Swagger UI",
+            swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
+            swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css",
+        )
+    
+    # Metrics endpoint
+    if settings.ENABLE_METRICS:
+        @app.get("/metrics", include_in_schema=False)
+        async def metrics():
+            return Response(content=prometheus_client.generate_latest(), media_type="text/plain")
+
+
 async def startup_event() -> None:
-    """Initialize components on application startup"""
-    # Initialize database
-    init_db()
-    logger.info(f"API Gateway database initialized successfully")
+    """
+    Startup event handler
+    
+    This function is called when the application starts up
+    """
+    try:
+        # Initialize database
+        init_db()
+        
+        # Log startup
+        logger.info("API Gateway service started")
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+        traceback.print_exc()
+        sys.exit(1)
 
 
-# Shutdown event
-@app.on_event("shutdown")
 async def shutdown_event() -> None:
-    """Cleanup resources on application shutdown"""
-    logger.info("API Gateway shutting down")
+    """
+    Shutdown event handler
+    
+    This function is called when the application shuts down
+    """
+    try:
+        # Close database connections
+        close_db_connections()
+        
+        # Log shutdown
+        logger.info("API Gateway service stopped")
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
 
 
-# Exception handlers
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException) -> Response:
-    """Handle HTTP exceptions with proper logging"""
-    correlation_id = getattr(request.state, "correlation_id", None)
-    logger.error(
-        f"HTTP {exc.status_code}: {exc.detail} "
-        f"(Correlation ID: {correlation_id})"
-    )
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail},
-        headers=exc.headers if hasattr(exc, "headers") else None,
-    )
-
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception) -> Response:
-    """Handle all other exceptions with proper logging"""
-    correlation_id = getattr(request.state, "correlation_id", None)
-    logger.error(
-        f"Unhandled exception: {str(exc)} "
-        f"(Correlation ID: {correlation_id})",
-        exc_info=True
-    )
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """
+    Global exception handler
+    
+    This function handles all unhandled exceptions
+    
+    Args:
+        request: FastAPI request
+        exc: Exception
+        
+    Returns:
+        JSONResponse: Error response
+    """
+    # Log exception
+    logger.error(f"Unhandled exception: {exc}")
+    logger.error(traceback.format_exc())
+    
+    # Return error response
     return JSONResponse(
         status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "Internal server error"},
+        content={
+            "status": "error",
+            "message": f"Internal server error: {str(exc)}",
+            "correlation_id": request.state.correlation_id if hasattr(request.state, "correlation_id") else None,
+            "timestamp": time.time(),
+        }
     )
 
 
-# Add routes
-# app.include_router(api_router, prefix=settings.API_V1_STR)
-
-# Health check endpoint
-@app.get("/health", tags=["health"])
-async def health() -> Dict[str, Any]:
-    """Health check endpoint"""
-    return {
-        "status": "ok",
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """
+    HTTP exception handler
+    
+    This function handles HTTP exceptions
+    
+    Args:
+        request: FastAPI request
+        exc: HTTP exception
+        
+    Returns:
+        JSONResponse: Error response
+    """
+    # Extract headers
+    headers = getattr(exc, "headers", None)
+    
+    # Create error response
+    error_response = {
+        "status": "error",
+        "message": str(exc.detail),
+        "code": exc.status_code,
+        "correlation_id": request.state.correlation_id if hasattr(request.state, "correlation_id") else None,
         "timestamp": time.time(),
-        "version": "1.0.0",
     }
-
-
-# Metrics endpoint
-@app.get("/metrics", tags=["monitoring"])
-async def metrics() -> Response:
-    """Expose Prometheus metrics"""
-    return Response(
-        content=prometheus_client.generate_latest(),
-        media_type="text/plain"
+    
+    # Log exception based on status code
+    if exc.status_code >= 500:
+        logger.error(f"HTTP error {exc.status_code}: {exc.detail}")
+    elif exc.status_code >= 400:
+        logger.warning(f"HTTP error {exc.status_code}: {exc.detail}")
+    
+    # Return error response
+    return JSONResponse(
+        content=error_response,
+        status_code=exc.status_code,
+        headers=headers,
     )
 
 
-# Custom API docs
-@app.get("/docs", tags=["documentation"])
-async def get_documentation() -> HTMLResponse:
-    """Custom Swagger UI docs"""
-    return get_swagger_ui_html(
-        openapi_url="/openapi.json",
-        title=f"{settings.GATEWAY_NAME} - API Documentation",
-        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
-        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css",
-    )
+# Create FastAPI application
+app = create_app()
 
 
-# Root endpoint
-@app.get("/", tags=["root"])
-async def root() -> Dict[str, Any]:
-    """Root endpoint with API information"""
-    return {
-        "name": settings.GATEWAY_NAME,
-        "version": "1.0.0",
-        "description": "API Gateway for Natal Astrology Engine",
-        "docs_url": "/docs",
-        "metrics_url": "/metrics",
-        "health_url": "/health",
-    }
-
-
-# 404 handler
-@app.get("/{path:path}", status_code=HTTP_404_NOT_FOUND)
-async def not_found(path: str) -> Dict[str, Any]:
-    """Handle 404 errors for any undefined route"""
-    return {"detail": f"Path '/{path}' not found"}
-
-
-# For local development with uvicorn
+# Run development server if executed directly
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    
+    # Configure logging
+    logging_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "standard": {
+                "format": settings.LOG_FORMAT,
+            },
+        },
+        "handlers": {
+            "default": {
+                "level": settings.LOG_LEVEL,
+                "formatter": "standard",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",
+            },
+        },
+        "loggers": {
+            "": {
+                "handlers": ["default"],
+                "level": settings.LOG_LEVEL,
+                "propagate": True
+            },
+            "uvicorn": {
+                "handlers": ["default"],
+                "level": settings.LOG_LEVEL,
+                "propagate": False,
+            },
+            "uvicorn.access": {
+                "handlers": ["default"],
+                "level": settings.LOG_LEVEL,
+                "propagate": False,
+            },
+        },
+    }
+    
+    # Run server
+    uvicorn.run(
+        "api_gateway.app.main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.RELOAD,
+        log_level=settings.LOG_LEVEL.lower(),
+        log_config=logging_config,
+    )

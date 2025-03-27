@@ -1,186 +1,171 @@
 """
 Monitoring utilities for the Natal Astrology Web Interface
 """
-import os
+
 import time
+import functools
+from flask import Flask, request, Response, g
 import logging
-from typing import Dict, Any, Optional
-from functools import wraps
 
-import prometheus_client
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
-from flask import request, Response, Flask
-
+# Try importing prometheus_client and setup multiprocessing mode if available
+try:
+    import prometheus_client
+    from prometheus_client import multiprocess, Counter, Histogram, Gauge, Summary, REGISTRY
+    
+    # Setup multiprocessing mode if PROMETHEUS_MULTIPROC_DIR is defined
+    import os
+    if "PROMETHEUS_MULTIPROC_DIR" in os.environ:
+        prometheus_dir = os.environ["PROMETHEUS_MULTIPROC_DIR"]
+        if not os.path.exists(prometheus_dir):
+            os.makedirs(prometheus_dir)
+        multiprocess.MultiProcessCollector(REGISTRY)
+    
+    # Define metrics
+    REQUEST_COUNT = Counter(
+        'web_request_total',
+        'Total number of HTTP requests',
+        ['method', 'endpoint', 'status']
+    )
+    
+    REQUEST_LATENCY = Histogram(
+        'web_request_duration_seconds',
+        'HTTP request latency in seconds',
+        ['method', 'endpoint']
+    )
+    
+    API_REQUEST_COUNT = Counter(
+        'api_request_total',
+        'Total number of API requests from web interface',
+        ['endpoint', 'status']
+    )
+    
+    CACHE_HIT_COUNT = Counter(
+        'cache_hit_total',
+        'Total number of cache hits',
+        ['type']
+    )
+    
+    CACHE_MISS_COUNT = Counter(
+        'cache_miss_total',
+        'Total number of cache misses',
+        ['type']
+    )
+    
+    CACHE_OPERATIONS = Counter(
+        'cache_operations_total',
+        'Total number of cache operations',
+        ['operation', 'result']
+    )
+    
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+    
 logger = logging.getLogger(__name__)
 
-# Initialize Prometheus metrics
-REQUEST_COUNT = Counter(
-    'natal_web_requests_total', 
-    'Total number of web requests',
-    ['method', 'endpoint', 'status_code']
-)
-
-REQUEST_LATENCY = Histogram(
-    'natal_web_request_latency_seconds', 
-    'Request latency in seconds',
-    ['method', 'endpoint']
-)
-
-API_REQUEST_COUNT = Counter(
-    'natal_api_requests_from_web_total', 
-    'Total number of API requests from web interface',
-    ['api_endpoint', 'status_code']
-)
-
-API_REQUEST_LATENCY = Histogram(
-    'natal_api_request_from_web_latency_seconds', 
-    'API request latency from web interface in seconds',
-    ['api_endpoint']
-)
-
-# Cache metrics
-CACHE_HIT_COUNT = Counter(
-    'natal_cache_hit_total',
-    'Total number of cache hits',
-    ['cache_type']
-)
-
-CACHE_MISS_COUNT = Counter(
-    'natal_cache_miss_total',
-    'Total number of cache misses',
-    ['cache_type']
-)
-
-CACHE_STATUS = Gauge(
-    'natal_cache_up',
-    'Redis cache status (1=up, 0=down)',
-    ['cache_instance']
-)
-
-CACHE_OPERATIONS = Counter(
-    'natal_cache_operations_total',
-    'Total number of cache operations',
-    ['operation', 'status']
-)
 
 def setup_metrics(app: Flask):
     """Add Prometheus metrics to Flask app"""
+    if not PROMETHEUS_AVAILABLE:
+        logger.warning("Prometheus client not available, skipping metrics setup")
+        return
     
+    # Add metrics endpoint
     @app.route('/metrics')
     def metrics():
         """Endpoint to expose Prometheus metrics"""
         return Response(
-            generate_latest(),
-            mimetype=CONTENT_TYPE_LATEST
+            prometheus_client.generate_latest(), 
+            mimetype='text/plain'
         )
-        
+    
+    # Add health check endpoint
     @app.route('/health')
     def health():
         """Health check endpoint"""
-        from utils import check_api_health
+        # Check API availability
+        api_available = getattr(g, 'api_available', False)
         
-        # Check API status
-        api_status = check_api_health()
-        
-        # Check Redis status
-        redis_status = False
+        # Check Redis availability if Redis client exists
         try:
-            import redis
-            import os
-            redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-            redis_client = redis.from_url(redis_url)
-            redis_status = redis_client.ping()
-            # Update cache status metric
-            CACHE_STATUS.labels('redis-main').set(1 if redis_status else 0)
-        except Exception as e:
-            logger.error(f"Redis health check failed: {str(e)}")
-            # Update cache status metric on failure
-            CACHE_STATUS.labels('redis-main').set(0)
+            from app.utils.redis_client import get_redis
+            redis_client = get_redis()
+            redis_available = redis_client is not None and redis_client.ping()
+        except (ImportError, Exception):
+            redis_available = False
         
-        # Overall status is UP only if both API and Redis are UP
-        status = "UP" if (api_status and redis_status) else "DOWN"
-        
+        # Construct response
         response = {
-            "status": status,
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "services": {
-                "web": "UP",
-                "api": "UP" if api_status else "DOWN",
-                "redis": "UP" if redis_status else "DOWN"
-            }
+            'status': 'ok' if api_available else 'degraded',
+            'api': 'available' if api_available else 'unavailable',
+            'redis': 'available' if redis_available else 'unavailable'
         }
         
-        return response, 200 if status == "UP" else 503
-
+        status_code = 200 if api_available else 503
+        return response, status_code
+    
+    # Register before_request handler
     @app.before_request
     def before_request():
         """Record request timestamp before each request"""
-        request.start_time = time.time()
-
+        g.start_time = time.time()
+    
+    # Register after_request handler
     @app.after_request
     def after_request(response):
         """Record metrics after each request"""
-        # Skip metrics endpoint to avoid recursion
-        if request.path != '/metrics':
-            request_latency = time.time() - getattr(request, 'start_time', time.time())
+        # Skip metrics for the metrics endpoint
+        if request.path == "/metrics":
+            return response
+        
+        # Calculate request duration
+        if hasattr(g, 'start_time'):
+            duration = time.time() - g.start_time
             
-            # Record request count and latency
+            # Normalize route by replacing route parameters with placeholders
+            if hasattr(request, 'endpoint') and request.endpoint:
+                endpoint = request.endpoint
+            else:
+                endpoint = request.path
+            
+            # Track request count and latency
             REQUEST_COUNT.labels(
-                request.method, 
-                request.path, 
-                response.status_code
+                method=request.method,
+                endpoint=endpoint,
+                status=response.status_code
             ).inc()
             
             REQUEST_LATENCY.labels(
-                request.method, 
-                request.path
-            ).observe(request_latency)
+                method=request.method,
+                endpoint=endpoint
+            ).observe(duration)
         
         return response
 
+
 def track_api_request(func):
     """Decorator to track API requests from the web interface"""
-    @wraps(func)
+    @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        endpoint = kwargs.get('endpoint', 'unknown')
+        if not PROMETHEUS_AVAILABLE:
+            return func(*args, **kwargs)
+        
+        endpoint = func.__name__
         start_time = time.time()
         
         try:
             result = func(*args, **kwargs)
-            
-            # Record metrics for successful call
-            api_latency = time.time() - start_time
-            
-            # Extract status code from result if possible, default to 200
-            status_code = 200
-            if isinstance(result, tuple) and len(result) > 1 and isinstance(result[0], dict):
-                status_code = result[0].get('status_code', 200)
-            
-            API_REQUEST_COUNT.labels(
-                endpoint,
-                status_code
-            ).inc()
-            
-            API_REQUEST_LATENCY.labels(
-                endpoint
-            ).observe(api_latency)
-            
-            return result
-            
+            status = "success"
         except Exception as e:
-            # Record metrics for failed call
-            api_latency = time.time() - start_time
-            
+            status = "error"
+            raise e
+        finally:
+            # Track API request
             API_REQUEST_COUNT.labels(
-                endpoint,
-                500  # Assuming exception = server error
+                endpoint=endpoint,
+                status=status
             ).inc()
-            
-            API_REQUEST_LATENCY.labels(
-                endpoint
-            ).observe(api_latency)
-            
-            # Re-raise the exception
-            raise
+        
+        return result
     
     return wrapper

@@ -1,3 +1,3 @@
 """
-Middleware module for the API Gateway.
+Middleware components for the API Gateway service
 """
