@@ -15,7 +15,8 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # Get configuration from environment or use defaults
-API_BASE_URL = os.environ.get("API_BASE_URL") or "http://localhost:8000"
+# In Replit, we'll hardcode the URL to localhost:8000 since we know that's where the FastAPI runs
+API_BASE_URL = "http://localhost:8000"
 API_KEY = os.environ.get("DEFAULT_API_KEY") or "test_key_1234567890"
 
 logger.info(f"Using API endpoint: {API_BASE_URL}")
@@ -23,20 +24,23 @@ logger.info(f"Using API endpoint: {API_BASE_URL}")
 def check_api_health():
     """Check if the API is healthy before making requests"""
     try:
-        # If API_BASE_URL starts with http:// or https://, use it as a base URL
-        # Otherwise it's a relative path, so we need to use the current app's domain
-        if API_BASE_URL.startswith(('http://', 'https://')):
-            url = urljoin(API_BASE_URL, '/api/health')
+        url = f"{API_BASE_URL}/api/health"
+        logger.info(f"Checking API health at: {url}")
+        
+        # Set a longer timeout for initial connection
+        response = requests.get(url, timeout=3)
+        
+        if response.status_code == 200:
+            logger.info("API health check successful")
+            return True
         else:
-            # For Replit, we can use relative paths when making browser requests,
-            # but for server-side requests, we need a full URL
-            # We'll use localhost for API calls made from the server
-            url = f"http://localhost:8000/api/health"
-            
-        response = requests.get(url, timeout=2)
-        return response.status_code == 200
+            logger.warning(f"API health check failed: Unexpected status code {response.status_code}")
+            return False
     except requests.RequestException as e:
         logger.warning(f"API health check failed: {e}")
+        return False
+    except Exception as e:
+        logger.warning(f"API health check failed with unexpected error: {e}")
         return False
 
 def api_request(endpoint, data=None, method="POST", retry_count=3, retry_delay=0.5):
@@ -53,19 +57,13 @@ def api_request(endpoint, data=None, method="POST", retry_count=3, retry_delay=0
     Returns:
         Response JSON or text depending on endpoint, or None if failed
     """
+    # For the first request, check API health
     if not check_api_health():
         logger.error("API service unavailable, health check failed")
         return None
     
-    # Construct the API URL with the correct path format
-    # If API_BASE_URL starts with http:// or https://, use it as a base URL with urljoin
-    # Otherwise, it's a relative path and we need to convert to an absolute URL for server-side requests
-    if API_BASE_URL.startswith(('http://', 'https://')):
-        url = urljoin(API_BASE_URL, f'/api/{endpoint}')
-    else:
-        # For Replit, we can use relative paths for browser requests,
-        # but for server-side requests from Python, we need a full URL
-        url = f"http://localhost:8000/api/{endpoint}"
+    # Construct the API URL
+    url = f"{API_BASE_URL}/api/{endpoint}"
         
     headers = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
     

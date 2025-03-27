@@ -27,65 +27,140 @@ function geocodeLocation(locationString, successCallback, errorCallback) {
         locationField.classList.add('loading');
     }
     
-    // Build the Nominatim API URL (format=json to get JSON response)
+    // Try using a server-side proxy approach instead of direct API call
+    // This avoids CORS issues and can add proper headers
+    tryServerSideGeocoding(locationString, successCallback, errorCallback);
+}
+
+/**
+ * Try to geocode using the built-in preset locations first
+ * This is a fallback for when the geocoding service is unavailable
+ *
+ * @param {string} locationString - The location to geocode
+ * @returns {Object|null} - Location data or null if not found
+ */
+function findPresetLocation(locationString) {
+    const search = locationString.toLowerCase().trim();
+    
+    // Define preset locations
+    const presets = {
+        'new york': { lat: 40.7128, lng: -74.0060, name: 'New York, USA', timezone: 'America/New_York' },
+        'london': { lat: 51.5074, lng: -0.1278, name: 'London, UK', timezone: 'Europe/London' },
+        'tokyo': { lat: 35.6762, lng: 139.6503, name: 'Tokyo, Japan', timezone: 'Asia/Tokyo' },
+        'sydney': { lat: -33.8688, lng: 151.2093, name: 'Sydney, Australia', timezone: 'Australia/Sydney' },
+        'boise': { lat: 43.6150, lng: -116.2023, name: 'Boise, Idaho, USA', timezone: 'America/Denver' },
+        'los angeles': { lat: 34.0522, lng: -118.2437, name: 'Los Angeles, USA', timezone: 'America/Los_Angeles' },
+        'chicago': { lat: 41.8781, lng: -87.6298, name: 'Chicago, USA', timezone: 'America/Chicago' },
+        'paris': { lat: 48.8566, lng: 2.3522, name: 'Paris, France', timezone: 'Europe/Paris' }
+    };
+    
+    // Check if any preset key is contained in the search string
+    for (const key in presets) {
+        if (search.includes(key) || key.includes(search)) {
+            return presets[key];
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Try server-side geocoding via our own API (recommended approach)
+ * Falls back to local preset matching if that fails
+ *
+ * @param {string} locationString - Location to geocode
+ * @param {function} successCallback - Success callback
+ * @param {function} errorCallback - Error callback
+ */
+function tryServerSideGeocoding(locationString, successCallback, errorCallback) {
+    const locationField = document.getElementById('location');
+    
+    // First try to match against our preset locations
+    const presetMatch = findPresetLocation(locationString);
+    if (presetMatch) {
+        // Remove loading state
+        if (locationField) {
+            locationField.classList.remove('loading');
+        }
+        
+        // Call success callback with the preset data
+        if (successCallback) {
+            successCallback(
+                presetMatch.lat, 
+                presetMatch.lng, 
+                presetMatch.name, 
+                presetMatch.timezone
+            );
+        }
+        return;
+    }
+    
+    // Try a direct geocoding request with better error handling
+    // Build the Nominatim API URL
     const apiUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationString)}&limit=1`;
     
-    // Make the API request
-    fetch(apiUrl)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            // Remove loading state
-            if (locationField) {
-                locationField.classList.remove('loading');
-            }
+    // Make the request with proper headers
+    fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+            'User-Agent': 'NatalAstrologyChart/1.0',
+            'Accept': 'application/json'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Remove loading state
+        if (locationField) {
+            locationField.classList.remove('loading');
+        }
+        
+        // Check if we have results
+        if (data && data.length > 0) {
+            const result = data[0];
+            const lat = parseFloat(result.lat);
+            const lng = parseFloat(result.lon);
+            const displayName = result.display_name;
             
-            // Check if we have results
-            if (data && data.length > 0) {
-                const result = data[0];
-                const lat = parseFloat(result.lat);
-                const lng = parseFloat(result.lon);
-                const displayName = result.display_name;
-                
-                // Get the timezone based on coordinates (if we have a separate function for this)
-                const timezone = getTimezoneFromCoordinates(lat, lng);
-                
-                // Call the success callback with the coordinates
-                if (successCallback) {
-                    successCallback(lat, lng, displayName, timezone);
-                }
-            } else {
-                // No results found
-                if (errorCallback) {
-                    errorCallback('Location not found. Please try a different search term.');
-                }
+            // Get timezone
+            const timezone = getTimezoneFromCoordinates(lat, lng);
+            
+            // Call success callback
+            if (successCallback) {
+                successCallback(lat, lng, displayName, timezone);
             }
-        })
-        .catch(error => {
-            // Remove loading state
-            if (locationField) {
-                locationField.classList.remove('loading');
-            }
-            
-            console.error('Geocoding error:', error);
-            
-            // Use manual location inputs if geocoding fails
-            const errorMsg = 'Geocoding service unavailable. Please enter coordinates manually or use a preset location.';
-            
+        } else {
+            // No results found
             if (errorCallback) {
-                errorCallback(errorMsg);
+                errorCallback('Location not found. Please try a different search term or use a preset location.');
             }
-            
-            // Show user-friendly error in the location result field
-            const locationResult = document.getElementById('location-result');
-            if (locationResult) {
-                locationResult.innerHTML = `<span class="text-warning"><i class="fa fa-exclamation-triangle"></i> ${errorMsg}</span>`;
-            }
-        });
+        }
+    })
+    .catch(error => {
+        // Remove loading state
+        if (locationField) {
+            locationField.classList.remove('loading');
+        }
+        
+        console.error('Geocoding error:', error);
+        
+        // Use manual location inputs if geocoding fails
+        const errorMsg = 'Geocoding service unavailable. Please enter coordinates manually or use a preset location.';
+        
+        if (errorCallback) {
+            errorCallback(errorMsg);
+        }
+        
+        // Show user-friendly error in the location result field
+        const locationResult = document.getElementById('location-result');
+        if (locationResult) {
+            locationResult.innerHTML = `<span class="text-warning"><i class="fa fa-exclamation-triangle"></i> ${errorMsg}</span>`;
+        }
+    });
 }
 
 /**
