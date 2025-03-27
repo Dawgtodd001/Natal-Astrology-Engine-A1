@@ -385,7 +385,8 @@ def api_redirect():
     host = request.headers.get('Host', 'localhost:5000')
     # Replace port 5000 with 8000 for the API service
     api_host = host.replace(':5000', ':8000')
-    return redirect(f"http://{api_host}/docs")
+    # Include the /api prefix since the FastAPI router uses this prefix
+    return redirect(f"http://{api_host}/api/docs")
 
 # Run the FastAPI application on a different port
 if __name__ == "__main__":
