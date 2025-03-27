@@ -7,12 +7,18 @@ import logging
 import requests
 from urllib.parse import urljoin
 from flask import flash, current_app
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 # Get configuration from environment or use defaults
 API_BASE_URL = os.environ.get("API_BASE_URL") or "http://localhost:8000"
 API_KEY = os.environ.get("DEFAULT_API_KEY") or "test_key_1234567890"
+
+logger.info(f"Using API endpoint: {API_BASE_URL}")
 
 def check_api_health():
     """Check if the API is healthy before making requests"""

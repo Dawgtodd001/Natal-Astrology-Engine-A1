@@ -72,8 +72,18 @@ function geocodeLocation(locationString, successCallback, errorCallback) {
             }
             
             console.error('Geocoding error:', error);
+            
+            // Use manual location inputs if geocoding fails
+            const errorMsg = 'Geocoding service unavailable. Please enter coordinates manually or use a preset location.';
+            
             if (errorCallback) {
-                errorCallback(`Error geocoding location: ${error.message}`);
+                errorCallback(errorMsg);
+            }
+            
+            // Show user-friendly error in the location result field
+            const locationResult = document.getElementById('location-result');
+            if (locationResult) {
+                locationResult.innerHTML = `<span class="text-warning"><i class="fa fa-exclamation-triangle"></i> ${errorMsg}</span>`;
             }
         });
 }
