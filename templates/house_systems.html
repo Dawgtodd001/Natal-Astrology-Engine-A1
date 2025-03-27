@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block title %}House Systems - Natal Astrology Engine{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <h1 class="mt-4 mb-4">House Systems</h1>
+            <p class="lead">
+                House systems are different methods of dividing the ecliptic into twelve houses for astrological interpretation.
+                Each system has its own approach to placement and calculation.
+            </p>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2>Available House Systems</h2>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>System Name</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for name, description in systems.items() %}
+                                <tr>
+                                    <td><strong>{{ name|title }}</strong></td>
+                                    <td>{{ description }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h2>About House Systems</h2>
+                </div>
+                <div class="card-body">
+                    <p>
+                        House systems are methods used in astrology to divide the celestial sphere into twelve sectors, 
+                        called houses. Each house represents different areas of life and experience.
+                    </p>
+                    
+                    <h3>Primary House System Categories</h3>
+                    
+                    <h4>Quadrant Systems</h4>
+                    <p>
+                        These divide the celestial sphere into four quadrants using the ascendant-descendant and midheaven-IC axes, 
+                        and then divide each quadrant into three houses.
+                        Examples: Placidus, Koch, Campanus, Regiomontanus
+                    </p>
+                    
+                    <h4>Equal House Systems</h4>
+                    <p>
+                        These create twelve equal divisions of the ecliptic, usually starting from the ascendant.
+                        Examples: Equal House, Whole Sign
+                    </p>
+                    
+                    <h4>Other Systems</h4>
+                    <p>
+                        Some systems use other astronomical points or mathematical calculations.
+                        Examples: Porphyry, Morinus
+                    </p>
+                    
+                    <h3>Choosing a House System</h3>
+                    <p>
+                        The choice of house system depends on:
+                    </p>
+                    <ul>
+                        <li>The astrological tradition you follow</li>
+                        <li>Personal preference and experience</li>
+                        <li>The specific type of astrological work you're doing</li>
+                        <li>Geographical considerations (some systems work poorly at extreme latitudes)</li>
+                    </ul>
+                    
+                    <p>
+                        Many modern astrologers use Placidus (the default in our application), while traditional astrologers 
+                        often prefer Whole Sign or Regiomontanus. Equal house is popular for its simplicity.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
