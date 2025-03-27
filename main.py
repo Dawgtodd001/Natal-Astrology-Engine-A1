@@ -5,11 +5,18 @@ and provides a user-friendly web interface for interacting with the API
 """
 import os
 import json
+import logging
 import requests
+import threading
 from urllib.parse import urljoin
 from app.main import app as fastapi_app
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_wtf.csrf import CSRFProtect, CSRFError
+from utils import check_api_health, api_request
+
+# Configure logging
+logging.basicConfig(level=logging.INFO,
+                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 # Create a Flask app as the web interface
 app = Flask(__name__, 
@@ -74,6 +81,19 @@ def internal_server_error(e):
 API_BASE_URL = os.environ.get("API_BASE_URL") or "http://localhost:8000"
 API_KEY = os.environ.get("DEFAULT_API_KEY") or "test_key_1234567890"
 
+# Check API availability on startup
+def check_api_availability():
+    """Check if the FastAPI backend is available"""
+    if check_api_health():
+        app.logger.info("API service is available")
+    else:
+        app.logger.warning("API service is not available. Some features may not work.")
+
+# Since Flask 2.0, before_first_request is removed, using a different approach
+# Run the check after the app is created using with app.app_context()
+with app.app_context():
+    threading.Thread(target=check_api_availability).start()
+
 # Routes
 @app.route('/')
 def index():
@@ -94,15 +114,10 @@ def chart():
     
     if profile_id:
         try:
-            # Get profiles from API
-            profile_response = requests.get(
-                urljoin(API_BASE_URL, '/api/profiles'),
-                headers={"X-API-Key": API_KEY}
-            )
+            # Get profiles from API with retry logic
+            profiles = api_request('profiles', method="GET")
             
-            if profile_response.status_code == 200:
-                profiles = profile_response.json()
-                
+            if profiles:
                 # Find the requested profile
                 for profile in profiles:
                     if str(profile['id']) == profile_id:
@@ -112,7 +127,7 @@ def chart():
                 if not selected_profile:
                     flash("Profile not found", "warning")
             else:
-                flash("Unable to retrieve profile data", "warning")
+                flash("Unable to retrieve profile data. The server may be unavailable.", "warning")
                 
         except Exception as e:
             flash(f"Error retrieving profile: {str(e)}", "danger")
@@ -144,37 +159,27 @@ def chart():
             if timezone:
                 birth_data["timezone"] = timezone
                 
-            # Make API request
-            response = requests.post(
-                urljoin(API_BASE_URL, '/api/chart'),
-                headers={"X-API-Key": API_KEY, "Content-Type": "application/json"},
-                json=birth_data
-            )
+            # Check API health before making request
+            if not check_api_health():
+                flash("The API service is currently unavailable. Please try again later.", "danger")
+                return redirect(url_for('chart'))
+                
+            # Make API request with retry logic
+            app.logger.info("Making API request to /api/chart")
+            chart_data = api_request('chart', data=birth_data)
             
-            if response.status_code == 200:
-                chart_data = response.json()
+            if chart_data:
                 session['chart_data'] = chart_data
                 session['birth_data'] = birth_data
                 return render_template('chart_result.html', chart=chart_data, birth_data=birth_data)
             else:
-                error_data = response.json()
-                flash(f"Error: {error_data.get('detail', {}).get('message', 'Unknown error')}", 'danger')
+                flash("Error generating chart. The server may be unavailable. Please try again later.", "danger")
                 
         except Exception as e:
             flash(f"Error generating chart: {str(e)}", 'danger')
     
-    # Get available house systems
-    try:
-        house_systems_response = requests.get(
-            urljoin(API_BASE_URL, '/api/house-systems'),
-            headers={"X-API-Key": API_KEY}
-        )
-        if house_systems_response.status_code == 200:
-            house_systems = house_systems_response.json()
-        else:
-            house_systems = {"placidus": "Default house system"}
-    except:
-        house_systems = {"placidus": "Default house system"}
+    # Get available house systems using our API request utility with retry logic
+    house_systems = api_request('house-systems', method="GET") or {"placidus": "Default house system"}
     
     return render_template('chart_form.html', 
                           house_systems=house_systems,
@@ -233,16 +238,18 @@ def interpret():
                 if timezone:
                     birth_data["timezone"] = timezone
             
-            # Make API request
-            response = requests.post(
-                urljoin(API_BASE_URL, '/api/interpret'),
-                headers={"X-API-Key": API_KEY, "Content-Type": "application/json"},
-                json=birth_data
-            )
+            # Check API health before making request
+            if not check_api_health():
+                flash("The API service is currently unavailable. Please try again later.", "danger")
+                return redirect(url_for('interpret'))
+                
+            # Make API request with retry logic
+            app.logger.info("Making API request to /api/interpret")
+            response = api_request('interpret', data=birth_data)
             
-            if response.status_code == 200:
-                # Get the plain text interpretation directly from the response
-                interpretation = response.text
+            if response:
+                # For interpretations, we expect plain text response
+                interpretation = response
                 
                 # Explicitly log what we're passing to the template for debugging
                 app.logger.info(f"Rendering interpretation with data type: {type(birth_data)}")
@@ -254,30 +261,13 @@ def interpret():
                     birth_data=birth_data
                 )
             else:
-                try:
-                    error_data = response.json()
-                    error_message = error_data.get('detail', {})
-                    if isinstance(error_message, dict):
-                        error_message = error_message.get('message', 'Unknown error')
-                    flash(f"Error: {error_message}", 'danger')
-                except Exception as e:
-                    flash(f"Error: {response.text or str(e)}", 'danger')
+                flash("Error generating interpretation. The server may be unavailable. Please try again later.", "danger")
                 
         except Exception as e:
             flash(f"Error generating interpretation: {str(e)}", 'danger')
     
-    # Get available house systems
-    try:
-        house_systems_response = requests.get(
-            urljoin(API_BASE_URL, '/api/house-systems'),
-            headers={"X-API-Key": API_KEY}
-        )
-        if house_systems_response.status_code == 200:
-            house_systems = house_systems_response.json()
-        else:
-            house_systems = {"placidus": "Default house system"}
-    except:
-        house_systems = {"placidus": "Default house system"}
+    # Get available house systems using our API request utility with retry logic
+    house_systems = api_request('house-systems', method="GET") or {"placidus": "Default house system"}
     
     # Check if we have chart data in session
     has_chart = 'chart_data' in session and 'birth_data' in session
@@ -296,114 +286,96 @@ def interpret():
 @app.route('/house-systems')
 def house_systems():
     """Display information about house systems"""
-    try:
-        response = requests.get(
-            urljoin(API_BASE_URL, '/api/house-systems'),
-            headers={"X-API-Key": API_KEY}
-        )
-        if response.status_code == 200:
-            systems = response.json()
-            return render_template('house_systems.html', systems=systems)
-        else:
-            flash("Unable to retrieve house systems information", 'warning')
-            return redirect(url_for('index'))
-    except Exception as e:
-        flash(f"Error: {str(e)}", 'danger')
+    # Use our API request utility with retry logic
+    systems = api_request('house-systems', method="GET")
+    
+    if systems:
+        return render_template('house_systems.html', systems=systems)
+    else:
+        flash("Unable to retrieve house systems information. The API may be unavailable.", 'warning')
         return redirect(url_for('index'))
 
 @app.route('/profiles')
 def profiles():
     """Display user profiles"""
-    try:
-        response = requests.get(
-            urljoin(API_BASE_URL, '/api/profiles'),
-            headers={"X-API-Key": API_KEY}
-        )
-        if response.status_code == 200:
-            user_profiles = response.json()
-            return render_template('profiles.html', profiles=user_profiles)
-        else:
-            flash("Unable to retrieve user profiles", 'warning')
-            return redirect(url_for('index'))
-    except Exception as e:
-        flash(f"Error: {str(e)}", 'danger')
+    # Use our API request utility with retry logic
+    user_profiles = api_request('profiles', method="GET")
+    
+    if user_profiles:
+        return render_template('profiles.html', profiles=user_profiles)
+    else:
+        flash("Unable to retrieve user profiles. The API may be unavailable.", 'warning')
         return redirect(url_for('index'))
 
 
 @app.route('/profile/<int:profile_id>/edit', methods=['GET', 'POST'])
 def edit_profile(profile_id):
     """Edit a user profile"""
-    # Get profile data
-    try:
-        # First get the profile
-        response = requests.get(
-            urljoin(API_BASE_URL, '/api/profiles'),
-            headers={"X-API-Key": API_KEY}
-        )
-        
-        if response.status_code != 200:
-            flash("Unable to retrieve profile data", 'warning')
-            return redirect(url_for('profiles'))
-        
-        profiles = response.json()
-        selected_profile = None
-        
-        # Find the requested profile
-        for profile in profiles:
-            if profile['id'] == profile_id:
-                selected_profile = profile
-                break
-                
-        if not selected_profile:
-            flash("Profile not found", 'warning')
-            return redirect(url_for('profiles'))
-            
-        # Handle form submission
-        if request.method == 'POST':
-            try:
-                # Extract form data
-                updated_profile = selected_profile.copy()
-                updated_profile['name'] = request.form.get('name')
-                updated_profile['birth_date'] = request.form.get('birth_date')
-                updated_profile['birth_time'] = request.form.get('birth_time')
-                
-                # Safely convert latitude and longitude to float
-                latitude = request.form.get('latitude')
-                longitude = request.form.get('longitude')
-                
-                try:
-                    updated_profile['latitude'] = float(latitude) if latitude else selected_profile['latitude']
-                    updated_profile['longitude'] = float(longitude) if longitude else selected_profile['longitude']
-                except (ValueError, TypeError):
-                    flash("Invalid latitude or longitude values. Please enter valid numbers.", "danger")
-                    return redirect(url_for('edit_profile', profile_id=profile_id))
-                
-                updated_profile['timezone'] = request.form.get('timezone') or selected_profile['timezone']
-                updated_profile['notes'] = request.form.get('notes') or selected_profile['notes']
-                
-                # Update the profile via API
-                update_response = requests.put(
-                    urljoin(API_BASE_URL, f'/api/profiles/{profile_id}'),
-                    headers={"X-API-Key": API_KEY, "Content-Type": "application/json"},
-                    json=updated_profile
-                )
-                
-                if update_response.status_code == 200:
-                    flash("Profile updated successfully", 'success')
-                    return redirect(url_for('profiles'))
-                else:
-                    error_data = update_response.json()
-                    flash(f"Error updating profile: {error_data.get('detail', {}).get('message', 'Unknown error')}", 'danger')
-            
-            except Exception as e:
-                flash(f"Error updating profile: {str(e)}", 'danger')
-        
-        # Display edit form
-        return render_template('edit_profile.html', profile=selected_profile)
-        
-    except Exception as e:
-        flash(f"Error: {str(e)}", 'danger')
+    # Get profiles using our API request utility with retry logic
+    profiles = api_request('profiles', method="GET")
+    
+    if not profiles:
+        flash("Unable to retrieve profile data. The API may be unavailable.", 'warning')
         return redirect(url_for('profiles'))
+    
+    selected_profile = None
+    
+    # Find the requested profile
+    for profile in profiles:
+        if profile['id'] == profile_id:
+            selected_profile = profile
+            break
+            
+    if not selected_profile:
+        flash("Profile not found", 'warning')
+        return redirect(url_for('profiles'))
+        
+    # Handle form submission
+    if request.method == 'POST':
+        try:
+            # Extract form data
+            updated_profile = selected_profile.copy()
+            updated_profile['name'] = request.form.get('name')
+            updated_profile['birth_date'] = request.form.get('birth_date')
+            updated_profile['birth_time'] = request.form.get('birth_time')
+            
+            # Safely convert latitude and longitude to float
+            latitude = request.form.get('latitude')
+            longitude = request.form.get('longitude')
+            
+            try:
+                updated_profile['latitude'] = float(latitude) if latitude else selected_profile['latitude']
+                updated_profile['longitude'] = float(longitude) if longitude else selected_profile['longitude']
+            except (ValueError, TypeError):
+                flash("Invalid latitude or longitude values. Please enter valid numbers.", "danger")
+                return redirect(url_for('edit_profile', profile_id=profile_id))
+            
+            updated_profile['timezone'] = request.form.get('timezone') or selected_profile['timezone']
+            updated_profile['notes'] = request.form.get('notes') or selected_profile['notes']
+            
+            # Check API health before update
+            if not check_api_health():
+                flash("The API service is currently unavailable. Please try again later.", "danger")
+                return redirect(url_for('edit_profile', profile_id=profile_id))
+            
+            # Update the profile via API with our custom endpoint name
+            app.logger.info(f"Making API request to update profile {profile_id}")
+            
+            # Custom endpoint path for profile update
+            update_endpoint = f"profiles/{profile_id}"
+            result = api_request(update_endpoint, data=updated_profile, method="PUT")
+            
+            if result:
+                flash("Profile updated successfully", 'success')
+                return redirect(url_for('profiles'))
+            else:
+                flash("Failed to update profile. The server may be unavailable.", 'danger')
+        
+        except Exception as e:
+            flash(f"Error updating profile: {str(e)}", 'danger')
+    
+    # Display edit form
+    return render_template('edit_profile.html', profile=selected_profile)
 
 @app.route('/api-redirect')
 def api_redirect():
