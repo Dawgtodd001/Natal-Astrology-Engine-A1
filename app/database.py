@@ -143,7 +143,73 @@ def seed_planet_interpretations(db):
         ),
     ]
     
+    # Sample data for Moon in each sign
+    moon_interpretations = [
+        PlanetInterpretation(
+            planet="Moon", 
+            sign="Aries", 
+            interpretation="The Moon in Aries gives quick emotional reactions and a need for independence in your emotional life. You process feelings through action and prefer direct expression. You may be impulsive in emotional matters but quick to move on from upsets."
+        ),
+        PlanetInterpretation(
+            planet="Moon", 
+            sign="Taurus", 
+            interpretation="The Moon in Taurus creates a need for emotional security and stability. You process feelings slowly and thoroughly, preferring predictable emotional environments. Physical comfort, good food, and beautiful surroundings help you feel emotionally secure."
+        ),
+        PlanetInterpretation(
+            planet="Moon", 
+            sign="Gemini", 
+            interpretation="The Moon in Gemini gives an intellectually responsive emotional nature. You process feelings through talking and analyzing, needing mental stimulation for emotional satisfaction. Your moods can change quickly, and you're adaptable in emotional matters."
+        ),
+        PlanetInterpretation(
+            planet="Moon", 
+            sign="Cancer", 
+            interpretation="The Moon in Cancer creates deep emotional sensitivity and strong nurturing instincts. This is the Moon's home sign, making your emotional nature particularly powerful. You're protective of loved ones and deeply connected to family and home."
+        ),
+        PlanetInterpretation(
+            planet="Moon", 
+            sign="Leo", 
+            interpretation="The Moon in Leo gives warm, generous emotional expressions and a need for approval. You process feelings through creative outlets and dramatic expression. You take pride in your emotional strength and loyalty to those you love."
+        ),
+        PlanetInterpretation(
+            planet="Moon", 
+            sign="Virgo", 
+            interpretation="The Moon in Virgo creates an analytical approach to emotions and a need for order in your emotional life. You process feelings by organizing, categorizing, and problem-solving. You may be self-critical but excel at practical emotional support for others."
+        ),
+        PlanetInterpretation(
+            planet="Moon", 
+            sign="Libra", 
+            interpretation="The Moon in Libra gives a harmonious emotional nature and a need for balanced relationships. You process feelings through connection with others and seek emotional equilibrium. Peace and beauty in your environment are essential for your emotional wellbeing."
+        ),
+        PlanetInterpretation(
+            planet="Moon", 
+            sign="Scorpio", 
+            interpretation="The Moon in Scorpio creates intense emotional depth and a powerful intuitive sense. You process feelings through transformation and deep psychological understanding. You form profound emotional bonds and may be guarded until trust is established."
+        ),
+        PlanetInterpretation(
+            planet="Moon", 
+            sign="Sagittarius", 
+            interpretation="The Moon in Sagittarius gives an optimistic emotional outlook and a need for emotional freedom. You process feelings through philosophy and broader meaning. Emotional exploration and adventure help you feel secure and fulfilled."
+        ),
+        PlanetInterpretation(
+            planet="Moon", 
+            sign="Capricorn", 
+            interpretation="The Moon in Capricorn creates emotional restraint and a need for achievement to feel secure. You process feelings through practical action and responsibility. You may appear reserved emotionally but have deep, enduring attachments."
+        ),
+        PlanetInterpretation(
+            planet="Moon", 
+            sign="Aquarius", 
+            interpretation="The Moon in Aquarius gives an unconventional emotional nature and a need for intellectual freedom. You process feelings through unique perspectives and humanitarian ideals. You value emotional independence and may detach when feelings become overwhelming."
+        ),
+        PlanetInterpretation(
+            planet="Moon", 
+            sign="Pisces", 
+            interpretation="The Moon in Pisces creates a highly empathic, compassionate emotional nature. You process feelings through intuitive understanding and creative or spiritual outlets. Boundaries with others' emotions can be challenging as you naturally absorb surrounding energies."
+        ),
+    ]
+    
+    # Add all interpretations to the database
     db.add_all(sun_interpretations)
+    db.add_all(moon_interpretations)
     db.commit()
 
 def seed_house_interpretations(db):
@@ -328,7 +394,79 @@ The Ascendant represents your outward personality and how others perceive you. W
 """
     )
     
-    db.add_all([basic_text, markdown])
+    # Concise template - more compact with just essential information
+    concise = InterpretationTemplate(
+        name="concise",
+        format_type="text",
+        template_content="""# Natal Chart Summary 
+**Birth:** {{ birth_info.birth_date }} {{ birth_info.birth_time }} ({{ birth_info.timezone }})
+
+## Key Placements
+- Sun: {{ sun.sign }} ({{ sun.house }}H)
+- Moon: {{ moon.sign }} ({{ moon.house }}H)
+- Ascendant: {{ ascendant.sign }}
+
+## Major Aspects
+{% for aspect in major_aspects %}
+- {{ aspect.planet1 }} {{ aspect.aspect_type }} {{ aspect.planet2 }}
+{% endfor %}
+
+## Elements & Modalities
+Fire: {% set fire_count = planets|selectattr('sign', 'in', ['Aries', 'Leo', 'Sagittarius'])|list|length %}
+Earth: {% set earth_count = planets|selectattr('sign', 'in', ['Taurus', 'Virgo', 'Capricorn'])|list|length %}
+Air: {% set air_count = planets|selectattr('sign', 'in', ['Gemini', 'Libra', 'Aquarius'])|list|length %}
+Water: {% set water_count = planets|selectattr('sign', 'in', ['Cancer', 'Scorpio', 'Pisces'])|list|length %}
+
+Cardinal: {% set cardinal_count = planets|selectattr('sign', 'in', ['Aries', 'Cancer', 'Libra', 'Capricorn'])|list|length %}
+Fixed: {% set fixed_count = planets|selectattr('sign', 'in', ['Taurus', 'Leo', 'Scorpio', 'Aquarius'])|list|length %}
+Mutable: {% set mutable_count = planets|selectattr('sign', 'in', ['Gemini', 'Virgo', 'Sagittarius', 'Pisces'])|list|length %}
+
+Fire: {{ fire_count }} | Earth: {{ earth_count }} | Air: {{ air_count }} | Water: {{ water_count }}
+Cardinal: {{ cardinal_count }} | Fixed: {{ fixed_count }} | Mutable: {{ mutable_count }}
+"""
+    )
+    
+    # Detailed Markdown template
+    detailed_markdown = InterpretationTemplate(
+        name="detailed_markdown",
+        format_type="markdown",
+        template_content="""# Comprehensive Natal Chart Interpretation
+
+**Birth Details:**
+- **Date:** {{ birth_info.birth_date }}
+- **Time:** {{ birth_info.birth_time }}
+- **Location:** {{ birth_info.latitude }}° {{ 'N' if birth_info.latitude >= 0 else 'S' }}, {{ birth_info.longitude }}° {{ 'E' if birth_info.longitude >= 0 else 'W' }}
+- **Timezone:** {{ birth_info.timezone }}
+
+## Core Planetary Placements
+
+### ☉ Sun in {{ sun.sign }} ({{ sun.house }}{{ 'st' if sun.house == 1 else 'nd' if sun.house == 2 else 'rd' if sun.house == 3 else 'th' }} House)
+{{ sun_sign_interpretation }}
+
+### ☽ Moon in {{ moon.sign }} ({{ moon.house }}{{ 'st' if moon.house == 1 else 'nd' if moon.house == 2 else 'rd' if moon.house == 3 else 'th' }} House)
+{{ moon_sign_interpretation }}
+
+### ↑ Ascendant in {{ ascendant.sign }}
+The Ascendant represents your outward personality and how others perceive you. With {{ ascendant.sign }} rising, you come across as {{ ascendant_keywords }}.
+
+## All Planetary Positions
+{% for planet in planets %}
+- **{{ planet.name }}** in **{{ planet.sign }}** ({{ planet.house }}{{ 'st' if planet.house == 1 else 'nd' if planet.house == 2 else 'rd' if planet.house == 3 else 'th' }} house){% if planet.retrograde %} *Retrograde*{% endif %}
+{% endfor %}
+
+## Major Aspects & Patterns
+{% for aspect in major_aspects %}
+- **{{ aspect.planet1 }}** {{ aspect.aspect_type }} **{{ aspect.planet2 }}** (orb: {{ aspect.orb|round(1) }}°)
+{% endfor %}
+
+## House Cusps
+{% for house in houses %}
+- House {{ house.number }}: {{ house.sign }} {{ house.degree }}°{{ house.minutes }}'
+{% endfor %}
+"""
+    )
+    
+    db.add_all([basic_text, markdown, concise, detailed_markdown])
     db.commit()
 
 def seed_user_profiles(db):
