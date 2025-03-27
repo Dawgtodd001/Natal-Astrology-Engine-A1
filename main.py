@@ -38,13 +38,14 @@ def add_security_headers(response):
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     # Enable the XSS filter built into modern browsers
     response.headers['X-XSS-Protection'] = '1; mode=block'
-    # Set strict Content Security Policy (CSP)
+    # Set Content Security Policy (CSP) with necessary exceptions for Bootstrap and other libraries
     csp_policy = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
         "img-src 'self' data:; "
-        "font-src 'self' https://cdn.jsdelivr.net; "
+        "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+        "connect-src 'self'; "
     )
     response.headers['Content-Security-Policy'] = csp_policy
     return response
@@ -119,11 +120,22 @@ def chart():
     if request.method == 'POST':
         try:
             # Extract form data
+            # Safely convert latitude and longitude to float with default values if missing
+            latitude = request.form.get('latitude')
+            longitude = request.form.get('longitude')
+            
+            try:
+                lat_float = float(latitude) if latitude else 0.0
+                lng_float = float(longitude) if longitude else 0.0
+            except (ValueError, TypeError):
+                flash("Invalid latitude or longitude values. Please enter valid numbers.", "danger")
+                return redirect(url_for('chart'))
+            
             birth_data = {
                 "birth_date": request.form.get('birth_date'),
                 "birth_time": request.form.get('birth_time'),
-                "latitude": float(request.form.get('latitude')),
-                "longitude": float(request.form.get('longitude')),
+                "latitude": lat_float,
+                "longitude": lng_float,
                 "house_system": request.form.get('house_system', 'placidus')
             }
             
@@ -182,11 +194,22 @@ def interpret():
                 birth_data["template_name"] = request.form.get('template_name', 'basic_text')
             else:
                 # Extract new form data
+                # Safely convert latitude and longitude to float with default values if missing
+                latitude = request.form.get('latitude')
+                longitude = request.form.get('longitude')
+                
+                try:
+                    lat_float = float(latitude) if latitude else 0.0
+                    lng_float = float(longitude) if longitude else 0.0
+                except (ValueError, TypeError):
+                    flash("Invalid latitude or longitude values. Please enter valid numbers.", "danger")
+                    return redirect(url_for('chart'))
+                
                 birth_data = {
                     "birth_date": request.form.get('birth_date'),
                     "birth_time": request.form.get('birth_time'),
-                    "latitude": float(request.form.get('latitude')),
-                    "longitude": float(request.form.get('longitude')),
+                    "latitude": lat_float,
+                    "longitude": lng_float,
                     "house_system": request.form.get('house_system', 'placidus'),
                     "template_name": request.form.get('template_name', 'basic_text')
                 }
@@ -309,8 +332,18 @@ def edit_profile(profile_id):
                 updated_profile['name'] = request.form.get('name')
                 updated_profile['birth_date'] = request.form.get('birth_date')
                 updated_profile['birth_time'] = request.form.get('birth_time')
-                updated_profile['latitude'] = float(request.form.get('latitude'))
-                updated_profile['longitude'] = float(request.form.get('longitude'))
+                
+                # Safely convert latitude and longitude to float
+                latitude = request.form.get('latitude')
+                longitude = request.form.get('longitude')
+                
+                try:
+                    updated_profile['latitude'] = float(latitude) if latitude else selected_profile['latitude']
+                    updated_profile['longitude'] = float(longitude) if longitude else selected_profile['longitude']
+                except (ValueError, TypeError):
+                    flash("Invalid latitude or longitude values. Please enter valid numbers.", "danger")
+                    return redirect(url_for('edit_profile', profile_id=profile_id))
+                
                 updated_profile['timezone'] = request.form.get('timezone') or selected_profile['timezone']
                 updated_profile['notes'] = request.form.get('notes') or selected_profile['notes']
                 
