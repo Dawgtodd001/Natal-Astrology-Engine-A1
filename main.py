@@ -190,8 +190,18 @@ def interpret():
             
             if use_existing and 'birth_data' in session:
                 # Use stored birth data
-                birth_data = session['birth_data']
+                birth_data = session.get('birth_data', {})
+                
+                # Verify birth_data is a dictionary
+                if not isinstance(birth_data, dict):
+                    birth_data = {}
+                    session['birth_data'] = birth_data
+                    flash("Invalid chart data in session. Please generate a new chart.", "warning")
+                    return redirect(url_for('chart'))
+                
+                # Add template name to the data
                 birth_data["template_name"] = request.form.get('template_name', 'basic_text')
+                birth_data["house_system"] = request.form.get('house_system', 'placidus')
             else:
                 # Extract new form data
                 # Safely convert latitude and longitude to float with default values if missing
@@ -203,7 +213,7 @@ def interpret():
                     lng_float = float(longitude) if longitude else 0.0
                 except (ValueError, TypeError):
                     flash("Invalid latitude or longitude values. Please enter valid numbers.", "danger")
-                    return redirect(url_for('chart'))
+                    return redirect(url_for('interpret'))
                 
                 birth_data = {
                     "birth_date": request.form.get('birth_date'),
@@ -254,10 +264,16 @@ def interpret():
     # Check if we have chart data in session
     has_chart = 'chart_data' in session and 'birth_data' in session
     
+    # Make sure birth_data is always a dictionary, not a list
+    birth_data = session.get('birth_data', {})
+    if not isinstance(birth_data, dict):
+        birth_data = {}  # Reset to empty dict if it's not a dictionary
+        session['birth_data'] = birth_data
+        
     return render_template('interpretation_form.html', 
                           house_systems=house_systems, 
                           has_chart=has_chart,
-                          birth_data=session.get('birth_data', {}))
+                          birth_data=birth_data)
 
 @app.route('/house-systems')
 def house_systems():

@@ -19,11 +19,18 @@
                 {% else %}
                 <div class="alert alert-info mb-3">
                     <h5>Chart Data Available</h5>
-                    <p>Using birth data for interpretation: {{ birth_data.get('birth_date', '') }} at {{ birth_data.get('birth_time', '') }}</p>
+                    <p>Using birth data for interpretation: 
+                        {% if birth_data is mapping %}
+                            {{ birth_data.get('birth_date', 'N/A') }} at {{ birth_data.get('birth_time', 'N/A') }}
+                        {% else %}
+                            Available
+                        {% endif %}
+                    </p>
                 </div>
                 
                 <form method="post" action="{{ url_for('interpret') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="use_existing" value="true">
                     <div class="mb-3">
                         <label for="template_name" class="form-label">Interpretation Template</label>
                         <select class="form-select" id="template_name" name="template_name">
@@ -38,7 +45,12 @@
                         <label for="house_system" class="form-label">House System</label>
                         <select class="form-select" id="house_system" name="house_system">
                             {% for system_id, description in house_systems.items() %}
-                                <option value="{{ system_id }}" {% if system_id == "placidus" %}selected{% endif %}>
+                                <option value="{{ system_id }}" 
+                                    {% if birth_data is mapping and birth_data.get('house_system') == system_id %}
+                                        selected
+                                    {% elif system_id == "placidus" %}
+                                        selected
+                                    {% endif %}>
                                     {{ system_id|capitalize }} - {{ description|truncate(50) }}
                                 </option>
                             {% endfor %}
