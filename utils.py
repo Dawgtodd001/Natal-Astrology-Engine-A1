@@ -3,6 +3,7 @@ Utility functions for the Flask frontend
 """
 import os
 import time
+import uuid
 import logging
 import random
 import requests
@@ -73,9 +74,9 @@ def check_api_health(max_retries=5, initial_delay=1.0):
     # Should never reach here, but just in case
     return False
 
-def api_request(endpoint, data=None, method="POST", retry_count=3, retry_delay=0.5):
+def api_request(endpoint, data=None, method="POST", retry_count=3, retry_delay=0.5, timeout=10, include_error_details=False):
     """
-    Make API request with retry logic
+    Make API request with retry logic and enhanced error handling
     
     Args:
         endpoint: API endpoint (without leading slash)
@@ -83,40 +84,153 @@ def api_request(endpoint, data=None, method="POST", retry_count=3, retry_delay=0
         method: HTTP method (POST, GET, etc.)
         retry_count: Number of retries on failure
         retry_delay: Delay between retries in seconds
+        timeout: Request timeout in seconds
+        include_error_details: If True, returns a tuple (data, error_info) where error_info contains details if request failed
         
     Returns:
-        Response JSON or text depending on endpoint, or None if failed
+        - If include_error_details=False (default): Response JSON/text depending on endpoint, or None if failed
+        - If include_error_details=True: Tuple (response_data, error_info) where error_info is None on success or
+          a dict with error details on failure
     """
+
     # For the first request, check API health
     if not check_api_health():
+        error_info = {
+            "error_type": "ServiceUnavailable",
+            "error_message": "API service unavailable, health check failed",
+            "status_code": 503
+        }
         logger.error("API service unavailable, health check failed")
-        return None
+        return (None, error_info) if include_error_details else None
     
     # Construct the API URL
     url = f"{API_BASE_URL}/api/{endpoint}"
-        
-    headers = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
     
+    # Track performance metrics
+    start_time = time.time()
+    metrics = {"endpoint": endpoint, "method": method}
+    
+    # Set up headers with request ID for tracing
+    request_id = str(uuid.uuid4())
+    headers = {
+        "X-API-Key": API_KEY, 
+        "Content-Type": "application/json",
+        "X-Request-ID": request_id
+    }
+    
+    # Initialize error info
+    error_info = None
+    response_data = None
+    
+    # Use exponential backoff with jitter for retries
     for attempt in range(retry_count):
         try:
+            # Make request with appropriate method
             if method.upper() == "GET":
-                response = requests.get(url, params=data, headers=headers, timeout=10)
+                response = requests.get(url, params=data, headers=headers, timeout=timeout)
             else:
-                response = requests.post(url, json=data, headers=headers, timeout=10)
-                
-            response.raise_for_status()
+                response = requests.post(url, json=data, headers=headers, timeout=timeout)
             
-            # Special case for the interpret endpoint which returns plain text
+            # Track response time
+            response_time = time.time() - start_time
+            metrics["response_time"] = round(response_time * 1000, 2)  # ms
+            
+            # Update metrics with status code
+            metrics["status_code"] = response.status_code
+            
+            # Check for error responses
+            if response.status_code >= 400:
+                # Try to parse error details from JSON response
+                try:
+                    error_details = response.json()
+                    error_message = error_details.get('detail', f"API error: HTTP {response.status_code}")
+                    error_code = error_details.get('error_code', 'UNKNOWN')
+                    
+                    error_info = {
+                        "error_type": "HTTPError",
+                        "error_message": error_message,
+                        "error_code": error_code,
+                        "status_code": response.status_code,
+                        "request_id": request_id
+                    }
+                except ValueError:
+                    # Non-JSON error response
+                    error_info = {
+                        "error_type": "HTTPError",
+                        "error_message": f"API error: HTTP {response.status_code} - {response.text[:100]}",
+                        "status_code": response.status_code,
+                        "request_id": request_id
+                    }
+                
+                # For client errors (4xx), don't retry
+                if 400 <= response.status_code < 500:
+                    log_level = "warning"
+                    log_msg = f"API client error ({response.status_code}) in {method} {endpoint}"
+                    # Don't retry client errors
+                    break
+                else:
+                    # For server errors (5xx), retry with backoff
+                    log_level = "error"
+                    log_msg = f"API server error ({response.status_code}) in {method} {endpoint}, will retry"
+                    
+                # Log the error at appropriate level
+                getattr(logger, log_level)(log_msg, extra={
+                    "error_info": error_info,
+                    "metrics": metrics,
+                    "attempt": attempt + 1
+                })
+                
+                # For server errors, continue to retry logic
+                response.raise_for_status()  # This will raise an exception for server errors
+            
+            # Process successful response
             if endpoint == 'interpret':
-                return response.text
+                # Special case for interpret endpoint which returns plain text
+                response_data = response.text
             else:
-                return response.json()
+                # JSON response for other endpoints
+                response_data = response.json()
+                
+            # Log successful request
+            logger.info(f"API request successful: {method} {endpoint}", extra={
+                "metrics": metrics,
+                "request_id": request_id
+            })
+            
+            # Return the data
+            return (response_data, None) if include_error_details else response_data
                 
         except requests.RequestException as e:
-            logger.warning(f"API request attempt {attempt+1}/{retry_count} failed: {e}")
+            # Calculate retry delay with exponential backoff and jitter
+            backoff_delay = retry_delay * (2 ** attempt)
+            jitter = random.uniform(0, 0.1 * backoff_delay)  # 10% jitter
+            actual_delay = backoff_delay + jitter
+            
+            # Update error info
+            error_info = {
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "attempt": attempt + 1,
+                "request_id": request_id
+            }
+            
+            # Check if this is the last attempt
             if attempt == retry_count - 1:
-                logger.error(f"API request failed after {retry_count} attempts: {e}")
-                return None
-            time.sleep(retry_delay)
+                logger.error(f"API request failed after {retry_count} attempts: {e}", extra={
+                    "error_info": error_info,
+                    "metrics": metrics,
+                    "endpoint": endpoint
+                })
+                return (None, error_info) if include_error_details else None
+            
+            # Log warning and retry
+            logger.warning(f"API request attempt {attempt+1}/{retry_count} failed: {e}", extra={
+                "error_info": error_info,
+                "retry_delay": round(actual_delay, 2),
+                "endpoint": endpoint
+            })
+            
+            # Sleep before retry
+            time.sleep(actual_delay)
     
     return None

@@ -2,11 +2,15 @@
 FastAPI application for Natal Astrology Engine
 """
 import os
+import uuid
 import logging
-from fastapi import FastAPI, Depends, Request
+import traceback
+from fastapi import FastAPI, Depends, Request, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi import HTTPException
 
 from app.api.endpoints import router as api_router
 from app.api.middlewares import setup_middlewares
@@ -57,9 +61,19 @@ except Exception as e:
     # Try mounting again
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Add exception handler for better logging
+# Comprehensive exception handlers for better logging and user experience
+
+# Handle general exceptions
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    """
+    Global exception handler for unhandled exceptions
+    """
+    # Get traceback information
+    import traceback
+    tb_str = ''.join(traceback.format_tb(exc.__traceback__))
+    
+    # Log detailed error information
     logger.error(
         f"Unhandled exception in request {request.method} {request.url}",
         extra={
@@ -67,14 +81,82 @@ async def global_exception_handler(request: Request, exc: Exception):
             "error_type": type(exc).__name__,
             "path": request.url.path,
             "method": request.method,
-            "client_host": request.client.host if request.client else "unknown"
+            "client_host": request.client.host if request.client else "unknown",
+            "traceback": tb_str
         }
     )
     
     # Return a clean response to the client
     return JSONResponse(
         status_code=500,
-        content={"detail": "An internal server error occurred"}
+        content={
+            "detail": "An internal server error occurred",
+            "type": type(exc).__name__,
+            "request_id": str(uuid.uuid4()),  # Add a unique ID for tracking in logs
+        }
+    )
+
+# Handle validation errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    Handler for validation errors with clear user feedback
+    """
+    # Extract validation error details
+    errors = exc.errors()
+    error_messages = []
+    
+    for error in errors:
+        loc = " -> ".join(str(x) for x in error["loc"] if x != "body")
+        error_messages.append(f"{loc}: {error['msg']}")
+    
+    # Log validation errors at warning level
+    logger.warning(
+        f"Validation error in request {request.method} {request.url}",
+        extra={
+            "errors": errors,
+            "path": request.url.path
+        }
+    )
+    
+    # Return structured error response
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "detail": {
+                "error_code": "VALIDATION_ERROR",
+                "message": "Invalid request parameters",
+                "errors": error_messages
+            }
+        }
+    )
+
+# Handle HTTP exceptions
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """
+    Enhanced HTTP exception handler with logging
+    """
+    # Log HTTP exceptions at info level for 4xx errors and error level for others
+    log_level = "info" if 400 <= exc.status_code < 500 else "error"
+    
+    log_method = getattr(logger, log_level)
+    log_method(
+        f"HTTP exception: {exc.status_code} in {request.method} {request.url}",
+        extra={
+            "status_code": exc.status_code,
+            "detail": exc.detail,
+            "path": request.url.path
+        }
+    )
+    
+    # Return the exception response with some additional context
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.detail,
+            "status_code": exc.status_code
+        }
     )
 
 # Serve index.html at root path

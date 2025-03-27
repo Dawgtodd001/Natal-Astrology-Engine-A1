@@ -282,14 +282,9 @@ def interpret():
                 if timezone:
                     birth_data["timezone"] = timezone
             
-            # Check API health before making request
-            if not check_api_health():
-                flash("The API service is currently unavailable. Please try again later.", "danger")
-                return redirect(url_for('interpret'))
-                
-            # Make API request with retry logic
+            # Make API request with enhanced error handling
             app.logger.info("Making API request to /api/interpret")
-            response = api_request('interpret', data=birth_data)
+            response, error_info = api_request('interpret', data=birth_data, include_error_details=True, timeout=20)
             
             if response:
                 # For interpretations, we expect plain text response
@@ -305,7 +300,23 @@ def interpret():
                     birth_data=birth_data
                 )
             else:
-                flash("Error generating interpretation. The server may be unavailable. Please try again later.", "danger")
+                # Provide more specific error messages based on error details
+                if error_info:
+                    error_type = error_info.get("error_type", "Unknown")
+                    error_message = error_info.get("error_message", "Unknown error")
+                    
+                    if error_type == "ServiceUnavailable":
+                        flash("The astrology calculation service is currently starting up. Please try again in a few moments.", "warning")
+                    elif error_type == "ConnectTimeout" or error_type == "ReadTimeout":
+                        flash("The chart calculation is taking longer than expected. Complex calculations may need more time.", "warning")
+                    elif error_type == "HTTPError" and error_info.get("status_code", 0) == 400:
+                        flash(f"The birth information provided is invalid: {error_message}", "danger")
+                    else:
+                        # Log the detailed error for debugging
+                        app.logger.error(f"API error: {error_type} - {error_message}")
+                        flash("Error generating interpretation. The server reported a problem. Please check your input and try again later.", "danger")
+                else:
+                    flash("Error generating interpretation. The server may be unavailable. Please try again later.", "danger")
                 
         except Exception as e:
             flash(f"Error generating interpretation: {str(e)}", 'danger')
@@ -330,13 +341,24 @@ def interpret():
 @app.route('/house-systems')
 def house_systems():
     """Display information about house systems"""
-    # Use our API request utility with retry logic
-    systems = api_request('house-systems', method="GET")
+    # Use our API request utility with enhanced error handling
+    systems, error_info = api_request('house-systems', method="GET", include_error_details=True)
     
     if systems:
         return render_template('house_systems.html', systems=systems)
     else:
-        flash("Unable to retrieve house systems information. The API may be unavailable.", 'warning')
+        # Provide more specific error messages based on error details
+        if error_info:
+            error_type = error_info.get("error_type", "Unknown")
+            
+            if error_type == "ServiceUnavailable":
+                flash("The astrology service is currently starting up. Please try again in a few moments.", 'warning')
+            else:
+                app.logger.error(f"API error retrieving house systems: {error_type} - {error_info.get('error_message', 'Unknown error')}")
+                flash("Unable to retrieve house systems information. The astrological calculation service encountered an error.", 'warning')
+        else:
+            flash("Unable to retrieve house systems information. The API may be unavailable.", 'warning')
+            
         return redirect(url_for('index'))
 
 @app.route('/profiles')

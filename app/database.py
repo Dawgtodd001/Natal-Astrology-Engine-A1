@@ -33,12 +33,35 @@ def get_db():
     """
     Get a database session
     Used as a dependency in FastAPI endpoints
+    
+    Returns:
+        SQLAlchemy database session that will be closed after usage
+        
+    Raises:
+        HTTPException: If database connection fails
     """
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
+        # Execute a simple query to test the connection
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
         yield db
+    except Exception as e:
+        # Log the database connection error
+        import logging
+        logging.error(f"Database connection error: {str(e)}")
+        
+        # Raise HTTP exception for the client
+        from fastapi import HTTPException
+        from fastapi import status
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database connection error. Please try again later."
+        )
     finally:
-        db.close()
+        if db:
+            db.close()
 
 def init_db():
     """Initialize the database with tables and seed data"""
