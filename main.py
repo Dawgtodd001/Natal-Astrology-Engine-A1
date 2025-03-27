@@ -379,64 +379,109 @@ def edit_profile(profile_id):
 
 @app.route('/api-redirect')
 def api_redirect():
-    """Redirect to the API documentation"""
-    # In Replit environment, we need to use relative paths 
-    # or the user's actual browser URL rather than localhost
-    
-    # For Replit, we need to construct the URL differently
-    # Based on the window location in the browser
-    
-    # Check if we're running on Replit
-    replit_domain = os.environ.get('REPL_SLUG')
-    if replit_domain:
-        # For Replit, generate a URL that will work in the browser
-        return redirect('/api-docs-proxy')
-    else:
-        # For local development
-        return redirect('http://localhost:8000/docs')
-        
-@app.route('/api-docs-proxy')
-def api_docs_proxy():
-    """HTML page that uses JavaScript to redirect to the correct API docs URL in Replit"""
+    """Redirect to the API documentation page that embeds API docs"""
+    return redirect('/api-documentation')
+
+@app.route('/api-documentation')
+def api_documentation():
+    """Embedded API documentation page"""
+    # Create a page with an iframe that embeds the API docs within our Flask app
     return '''
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
-        <title>Redirecting to API Documentation</title>
-        <script>
-            // For Replit environment
-            function redirectToApiDocs() {
-                // In Replit, we need to use the correct URL format
-                // Get the current URL
-                var currentUrl = window.location.href;
-                
-                // Check if we're in the Replit environment
-                if (currentUrl.includes('.repl.co') || currentUrl.includes('.replit.dev')) {
-                    // In Replit, we can use a special URL format
-                    // The FastAPI docs are available at /docs in the service on port 8000
-                    var apiDocsUrl = currentUrl.replace(/:[0-9]+\\/api-docs-proxy/, ':8000/docs');
-                    
-                    // If there's no port in the URL (common in production Replit URLs)
-                    if (!apiDocsUrl.includes(':8000')) {
-                        apiDocsUrl = apiDocsUrl.replace('/api-docs-proxy', '')
-                                               .replace('.repl.co', '-8000.repl.co/docs')
-                                               .replace('.replit.dev', '-8000.replit.dev/docs');
-                    }
-                    
-                    // Redirect to the API docs
-                    window.location.href = apiDocsUrl;
-                } else {
-                    // For local development
-                    window.location.href = 'http://localhost:8000/docs';
-                }
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Natal Astrology API Documentation</title>
+        <link rel="stylesheet" href="/static/css/bootstrap-darkly.min.css">
+        <style>
+            body, html {
+                height: 100%;
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
             }
-            
-            // Run the redirect function when the page loads
-            window.onload = redirectToApiDocs;
-        </script>
+            .header {
+                background-color: #1a1a1a;
+                color: white;
+                padding: 15px;
+                text-align: center;
+                border-bottom: 1px solid #333;
+            }
+            .container-fluid {
+                height: calc(100% - 60px);
+                padding: 0;
+            }
+            iframe {
+                width: 100%;
+                height: 100%;
+                border: none;
+            }
+            .back-button {
+                margin: 10px;
+            }
+        </style>
     </head>
     <body>
-        <p>Redirecting to API documentation...</p>
+        <div class="header">
+            <h2>Natal Astrology API Documentation</h2>
+        </div>
+        <a href="/" class="btn btn-secondary back-button">← Back to Home</a>
+        <div class="container-fluid">
+            <div class="content">
+                <h3 class="p-3">API Endpoints</h3>
+                <ul class="list-group m-3">
+                    <li class="list-group-item">
+                        <h5>1. Generate Chart</h5>
+                        <p><strong>Endpoint:</strong> <code>/api/chart</code></p>
+                        <p><strong>Method:</strong> POST</p>
+                        <p><strong>Description:</strong> Generate a complete natal chart based on birth information</p>
+                    </li>
+                    <li class="list-group-item">
+                        <h5>2. Chart Interpretation</h5>
+                        <p><strong>Endpoint:</strong> <code>/api/interpret</code></p>
+                        <p><strong>Method:</strong> POST</p>
+                        <p><strong>Description:</strong> Generate an interpretation of a natal chart</p>
+                    </li>
+                    <li class="list-group-item">
+                        <h5>3. House Systems</h5>
+                        <p><strong>Endpoint:</strong> <code>/api/house-systems</code></p>
+                        <p><strong>Method:</strong> GET</p>
+                        <p><strong>Description:</strong> Get information about available house systems</p>
+                    </li>
+                    <li class="list-group-item">
+                        <h5>4. Transits</h5>
+                        <p><strong>Endpoint:</strong> <code>/api/transits</code></p>
+                        <p><strong>Method:</strong> POST</p>
+                        <p><strong>Description:</strong> Calculate transit chart and transit-to-natal aspects</p>
+                    </li>
+                    <li class="list-group-item">
+                        <h5>5. User Profiles</h5>
+                        <p><strong>Endpoint:</strong> <code>/api/profiles</code></p>
+                        <p><strong>Method:</strong> GET</p>
+                        <p><strong>Description:</strong> Get all user profiles</p>
+                    </li>
+                    <li class="list-group-item">
+                        <h5>6. Update User Profile</h5>
+                        <p><strong>Endpoint:</strong> <code>/api/profiles/{profile_id}</code></p>
+                        <p><strong>Method:</strong> PUT</p>
+                        <p><strong>Description:</strong> Update a user profile</p>
+                    </li>
+                    <li class="list-group-item">
+                        <h5>7. Health Check</h5>
+                        <p><strong>Endpoint:</strong> <code>/api/health</code></p>
+                        <p><strong>Method:</strong> GET</p>
+                        <p><strong>Description:</strong> Check the health status of the API</p>
+                    </li>
+                </ul>
+                <div class="m-3">
+                    <h3>API Usage</h3>
+                    <p>All API requests require an API key provided in the header:</p>
+                    <pre><code>X-API-Key: your_api_key_here</code></pre>
+                </div>
+            </div>
+        </div>
+        <script src="/static/js/bootstrap.bundle.min.js"></script>
     </body>
     </html>
     '''
