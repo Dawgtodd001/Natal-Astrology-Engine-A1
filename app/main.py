@@ -23,8 +23,8 @@ app = FastAPI(
     title="Natal Astrology Engine",
     description="API for generating and interpreting astrological birth charts",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
+    docs_url="/api/docs",  # Update to match the router prefix
+    redoc_url="/api/redoc"  # Update to match the router prefix
 )
 
 # Configure CORS
@@ -40,7 +40,7 @@ app.add_middleware(
 setup_middlewares(app)
 
 # Include API router
-app.include_router(api_router, prefix="")
+app.include_router(api_router, prefix="/api")
 
 # Mount static files
 try:
@@ -106,8 +106,8 @@ async def read_root():
                     <h2>API Documentation</h2>
                     <p>Explore the API using the interactive documentation:</p>
                     <ul>
-                        <li><a href="/docs">Swagger UI Documentation</a></li>
-                        <li><a href="/redoc">ReDoc Documentation</a></li>
+                        <li><a href="/api/docs">Swagger UI Documentation</a></li>
+                        <li><a href="/api/redoc">ReDoc Documentation</a></li>
                     </ul>
                 </div>
             </body>
