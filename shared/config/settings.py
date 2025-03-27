@@ -1,140 +1,139 @@
 """
-Shared configuration settings for the Natal Astrology Engine microservices.
-
-This module provides common configuration settings that can be
-imported and used by any microservice, ensuring consistency across
-the system.
+Shared configuration settings for all microservices
 """
-
 import os
-import secrets
-from typing import Dict, List, Optional, Union, Any
-from pathlib import Path
+import json
+from typing import List, Dict, Any, Optional
+from dotenv import load_dotenv
 
+# Load environment variables from .env file if present
+load_dotenv()
+
+# Try to import pydantic, but provide fallbacks if not available
 try:
-    from pydantic import BaseSettings, Field, validator
-    PYDANTIC_AVAILABLE = True
+    from pydantic import BaseModel
 except ImportError:
-    PYDANTIC_AVAILABLE = False
-    BaseSettings = object
-    Field = lambda *args, **kwargs: None  # noqa
-
-
-# Base directory for the project
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-
-
-# Define settings class if Pydantic is available
-if PYDANTIC_AVAILABLE:
-    class BaseServiceSettings(BaseSettings):
-        """Base settings class for all services"""
-        
-        # Service identification
-        SERVICE_NAME: str = Field("Unknown", description="Name of the service")
-        VERSION: str = Field("1.0.0", description="Service version")
-        
-        # API configuration
-        API_V1_STR: str = Field("/api/v1", description="API v1 prefix")
-        
-        # Authentication
-        SECRET_KEY: str = Field(
-            default_factory=lambda: secrets.token_urlsafe(32),
-            description="Secret key for security features"
-        )
-        DEFAULT_API_KEY: Optional[str] = Field(
-            None, description="Default API key for development"
-        )
-        
-        # CORS
-        BACKEND_CORS_ORIGINS: List[str] = Field(
-            ["*"],
-            description="List of allowed origins for CORS"
-        )
-        
-        # Database
-        DATABASE_URL: str = Field(
-            "sqlite:///app.db",
-            description="Database connection URL"
-        )
-        
-        # Redis
-        REDIS_URL: Optional[str] = Field(
-            None,
-            description="Redis connection URL"
-        )
-        REDIS_CACHE_TTL: int = Field(
-            3600,
-            description="Default TTL for cached items in seconds"
-        )
-        
-        # Logging
-        LOG_LEVEL: str = Field(
-            "INFO",
-            description="Log level"
-        )
-        JSON_LOGS: bool = Field(
-            True,
-            description="Use JSON format for logs"
-        )
-        
-        # Monitoring
-        ENABLE_METRICS: bool = Field(
-            True,
-            description="Enable Prometheus metrics"
-        )
-        PROMETHEUS_MULTIPROC_DIR: Optional[str] = Field(
-            None,
-            description="Directory for Prometheus multiprocess mode"
-        )
-        
-        # Sentry error tracking
-        SENTRY_DSN: Optional[str] = Field(
-            None,
-            description="Sentry DSN for error tracking"
-        )
-        SENTRY_ENVIRONMENT: str = Field(
-            "development",
-            description="Sentry environment"
-        )
-        SENTRY_TRACES_SAMPLE_RATE: float = Field(
-            0.1,
-            description="Sentry traces sample rate"
-        )
-        
-        # OpenAI
-        OPENAI_API_KEY: Optional[str] = Field(
-            None,
-            description="OpenAI API Key for AI-powered interpretations"
-        )
-        
+    # Simple fallback implementation if pydantic is not available
+    class BaseModel:
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+                
         class Config:
-            env_file = ".env"
             case_sensitive = True
+            env_prefix = ""
 
 
-# If Pydantic is not available, provide a fallback
-else:
-    # Basic settings functions
-    def get_env(key: str, default: Any = None) -> Any:
-        """Get environment variable"""
-        return os.environ.get(key, default)
+class Settings(BaseModel):
+    """
+    Shared global settings for all microservices
     
+    This ensures consistent configuration across services
+    """
+    # Base settings
+    APP_NAME: str = os.getenv("APP_NAME", "Natal Astrology Engine")
+    APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0")
+    APP_DESCRIPTION: str = os.getenv("APP_DESCRIPTION", 
+                                     "API for calculating and interpreting natal astrology charts")
     
-    # Define common settings as variables
-    SERVICE_NAME = get_env("SERVICE_NAME", "Unknown")
-    VERSION = get_env("VERSION", "1.0.0")
-    API_V1_STR = get_env("API_V1_STR", "/api/v1")
-    SECRET_KEY = get_env("SECRET_KEY", secrets.token_urlsafe(32))
-    DEFAULT_API_KEY = get_env("DEFAULT_API_KEY")
-    BACKEND_CORS_ORIGINS = get_env("BACKEND_CORS_ORIGINS", "*").split(",")
-    DATABASE_URL = get_env("DATABASE_URL", "sqlite:///app.db")
-    REDIS_URL = get_env("REDIS_URL")
-    REDIS_CACHE_TTL = int(get_env("REDIS_CACHE_TTL", "3600"))
-    LOG_LEVEL = get_env("LOG_LEVEL", "INFO")
-    JSON_LOGS = get_env("JSON_LOGS", "true").lower() in ("true", "1", "t")
-    ENABLE_METRICS = get_env("ENABLE_METRICS", "true").lower() in ("true", "1", "t")
-    PROMETHEUS_MULTIPROC_DIR = get_env("PROMETHEUS_MULTIPROC_DIR")
-    SENTRY_DSN = get_env("SENTRY_DSN")
-    SENTRY_ENVIRONMENT = get_env("SENTRY_ENVIRONMENT", "development")
-    SENTRY_TRACES_SAMPLE_RATE = float(get_env("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
-    OPENAI_API_KEY = get_env("OPENAI_API_KEY")
+    # Environment and debugging
+    APP_ENV: str = os.getenv("APP_ENV", "development")  # development, staging, production
+    
+    # Performance and scaling
+    WORKERS: int = int(os.getenv("WORKERS", "1"))
+    WORKER_CONNECTIONS: int = int(os.getenv("WORKER_CONNECTIONS", "1000"))
+    
+    # CORS settings
+    CORS_ORIGINS: List[str] = os.getenv("CORS_ORIGINS", "*").split(",")
+    CORS_ALLOW_METHODS: List[str] = ["*"]
+    CORS_ALLOW_HEADERS: List[str] = ["*"]
+    
+    # Security settings
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "natal_astrology_super_secret_key_change_this_in_production")
+    API_KEY_HEADER: str = "X-API-Key"
+    
+    # Service discovery
+    SERVICE_REGISTRY_HOST: str = os.getenv("SERVICE_REGISTRY_HOST", "localhost")
+    SERVICE_REGISTRY_PORT: int = int(os.getenv("SERVICE_REGISTRY_PORT", "8500"))
+    
+    # Logging configuration
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    STRUCTURED_LOGGING: bool = os.getenv("STRUCTURED_LOGGING", "false").lower() == "true"
+    
+    # Database configuration
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL", 
+        f"postgresql://{os.getenv('PGUSER')}:{os.getenv('PGPASSWORD')}@{os.getenv('PGHOST')}:{os.getenv('PGPORT')}/{os.getenv('PGDATABASE')}"
+    )
+    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "5"))
+    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+    DB_POOL_TIMEOUT: int = int(os.getenv("DB_POOL_TIMEOUT", "30"))
+    DB_POOL_RECYCLE: int = int(os.getenv("DB_POOL_RECYCLE", "300"))
+    
+    # Metrics and monitoring
+    ENABLE_METRICS: bool = os.getenv("ENABLE_METRICS", "true").lower() == "true"
+    METRICS_PORT: int = int(os.getenv("METRICS_PORT", "9090"))
+    
+    # Rate limiting
+    RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
+    
+    # Redis settings
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+    REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
+    REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
+    REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
+    REDIS_URL: str = os.getenv("REDIS_URL", f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
+    
+    # Celery settings
+    CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", REDIS_URL)
+    CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", REDIS_URL)
+    CELERY_TASK_TIMEOUT: float = float(os.getenv("CELERY_TASK_TIMEOUT", "300.0"))  # 5 minutes
+    
+    # API Gateway settings
+    API_GATEWAY_HOST: str = os.getenv("API_GATEWAY_HOST", "localhost")
+    API_GATEWAY_PORT: int = int(os.getenv("API_GATEWAY_PORT", "8000"))
+    
+    # Service URLs with fallbacks to local development settings
+    API_GATEWAY_URL: str = os.getenv("API_GATEWAY_URL", f"http://{API_GATEWAY_HOST}:{API_GATEWAY_PORT}")
+    CHART_SERVICE_URL: str = os.getenv("CHART_SERVICE_URL", "http://localhost:8001")
+    INTERPRET_SERVICE_URL: str = os.getenv("INTERPRET_SERVICE_URL", "http://localhost:8002")
+    USER_SERVICE_URL: str = os.getenv("USER_SERVICE_URL", "http://localhost:8003")
+
+    # OpenAI settings for AI interpretation
+    OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+    OPENAI_TEMPERATURE: float = float(os.getenv("OPENAI_TEMPERATURE", "0.7"))
+    OPENAI_MAX_TOKENS: int = int(os.getenv("OPENAI_MAX_TOKENS", "2000"))
+    
+    # Class configuration
+    class Config:
+        case_sensitive = True
+        env_prefix = ""
+
+    def as_dict(self) -> Dict[str, Any]:
+        """Convert settings to a dictionary"""
+        return {key: value for key, value in self.__dict__.items() 
+                if not key.startswith("_") and not callable(value)}
+    
+    def as_json(self) -> str:
+        """Convert settings to a JSON string"""
+        return json.dumps(self.as_dict(), indent=2)
+    
+    def get_service_url(self, service_name: str) -> str:
+        """Get URL for a specific service"""
+        service_map = {
+            "api-gateway": self.API_GATEWAY_URL,
+            "chart-calculation": self.CHART_SERVICE_URL,
+            "interpretation": self.INTERPRET_SERVICE_URL,
+            "user-profile": self.USER_SERVICE_URL,
+        }
+        
+        return service_map.get(service_name.lower(), "")
+
+
+# Create global settings instance
+settings = Settings()
+
+# Export to make available as an import
+__all__ = ["settings", "Settings"]

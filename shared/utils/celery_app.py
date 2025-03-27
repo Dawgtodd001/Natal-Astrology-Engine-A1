@@ -1,210 +1,230 @@
 """
-Celery configuration for the Natal Astrology Engine microservices.
-
-This module provides a shared Celery configuration that can be
-imported and used by any microservice that needs to perform
-asynchronous task processing.
+Celery application setup for the Natal Astrology Engine microservices
 """
-
 import os
 import logging
-import datetime
-from typing import Dict, Any, Optional
+import time
+from typing import Any, Dict, List, Optional, Union, Callable
 
+# Load environment settings
+from shared.config.settings import settings
+
+# Set up logging
+logger = logging.getLogger(__name__)
+
+# Try to import Celery with fallback
 try:
     from celery import Celery
+    from celery.app import trace
     CELERY_AVAILABLE = True
 except ImportError:
     CELERY_AVAILABLE = False
-
-# Set up logger
-logger = logging.getLogger(__name__)
-
-# Default configuration
-DEFAULT_REDIS_URL = "redis://localhost:6379/0"
-DEFAULT_RESULT_TTL = 3600  # 1 hour
-DEFAULT_TASK_SOFT_TIMEOUT = 600  # 10 minutes
-DEFAULT_TASK_HARD_TIMEOUT = 1200  # 20 minutes
-DEFAULT_TASK_SERIALIZER = "json"
-DEFAULT_RESULT_SERIALIZER = "json"
-DEFAULT_ACCEPT_CONTENT = ["json"]
-DEFAULT_TIMEZONE = "UTC"
-DEFAULT_REDIS_MAX_CONNECTIONS = 10
+    logger.warning("Celery package not installed - async task processing will not be available")
 
 
-def create_celery_app(service_name: str) -> Optional['Celery']:
+def create_celery_app(app_name: str = None) -> Any:
     """
-    Create and configure a Celery application for a specific service.
+    Create a Celery application instance with proper configuration
     
     Args:
-        service_name: Name of the service using this Celery instance
-        
+        app_name: Name of the app for Celery task namespace
+    
     Returns:
-        Configured Celery application or None if Celery is not available
+        Celery application instance or None if Celery is not available
     """
     if not CELERY_AVAILABLE:
-        logger.warning("Celery package is not installed")
-        return None
+        logger.warning("Celery not available, returning dummy app")
+        return DummyCeleryApp()
     
-    # Get Redis URL from environment or use default
-    redis_url = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
+    # Use the provided app name or get from settings
+    app_name = app_name or settings.APP_NAME.lower().replace(" ", "_")
     
     # Create Celery app
     app = Celery(
-        service_name,
-        broker=redis_url,
-        backend=redis_url
+        app_name,
+        broker=settings.CELERY_BROKER_URL,
+        backend=settings.CELERY_RESULT_BACKEND,
     )
     
     # Configure Celery
     app.conf.update(
-        # Task result settings
-        result_backend=redis_url,
-        result_expires=int(os.environ.get("CELERY_RESULT_TTL", DEFAULT_RESULT_TTL)),
-        
-        # Serialization
-        task_serializer=DEFAULT_TASK_SERIALIZER,
-        result_serializer=DEFAULT_RESULT_SERIALIZER,
-        accept_content=DEFAULT_ACCEPT_CONTENT,
-        
-        # Task execution settings
-        task_soft_time_limit=int(os.environ.get("CELERY_TASK_SOFT_TIMEOUT", DEFAULT_TASK_SOFT_TIMEOUT)),
-        task_time_limit=int(os.environ.get("CELERY_TASK_HARD_TIMEOUT", DEFAULT_TASK_HARD_TIMEOUT)),
-        
-        # Worker settings
-        worker_prefetch_multiplier=1,  # Fetch one task at a time
-        worker_max_tasks_per_child=1000,  # Restart worker after 1000 tasks
-        worker_concurrency=int(os.environ.get("CELERY_WORKERS", 2)),
-        
-        # Beat settings (if scheduled tasks are needed)
-        beat_schedule={},
-        
-        # Timezone
-        timezone=DEFAULT_TIMEZONE,
+        # Task settings
+        task_serializer="json",
+        accept_content=["json"],
+        result_serializer="json",
+        timezone="UTC",
         enable_utc=True,
         
-        # Broker settings
-        broker_transport_options={
-            'visibility_timeout': 3600,  # 1 hour - adjust based on longest task
-            'max_connections': int(os.environ.get("REDIS_MAX_CONNECTIONS", DEFAULT_REDIS_MAX_CONNECTIONS)),
+        # Result settings
+        result_expires=60 * 60 * 24,  # 24 hours
+        
+        # Performance settings
+        worker_prefetch_multiplier=1,
+        task_acks_late=True,
+        task_reject_on_worker_lost=True,
+        
+        # Retry settings
+        task_publish_retry=True,
+        task_publish_retry_policy={
+            "max_retries": 3,
+            "interval_start": 0.2,
+            "interval_step": 0.5,
+            "interval_max": 1.0,
         },
         
         # Logging
-        worker_hijack_root_logger=False,
-        
-        # Task routes (customize based on service needs)
-        task_routes={}
+        worker_redirect_stdouts=False,
+        worker_log_format=settings.LOG_FORMAT,
     )
     
-    # Set up task routes based on service
-    if service_name == "interpretation":
-        app.conf.task_routes = {
-            'app.tasks.interpretation_tasks.*': {'queue': 'interpretation'},
-        }
-    elif service_name == "chart_calculation":
-        app.conf.task_routes = {
-            'app.tasks.calculation_tasks.*': {'queue': 'calculation'},
-        }
+    # Set Redis visibility timeout
+    app.conf.broker_transport_options = {
+        "visibility_timeout": int(settings.CELERY_TASK_TIMEOUT),
+    }
+    
+    # Set up task tracking
+    setup_task_monitoring(app)
     
     return app
 
 
-# Define task monitoring signals if Celery is available
-if CELERY_AVAILABLE:
-    from celery.signals import (
-        task_prerun,
-        task_postrun,
-        task_success,
-        task_failure,
-        task_retry,
-    )
+def setup_task_monitoring(app):
+    """Set up Celery task monitoring with Prometheus metrics"""
+    if not CELERY_AVAILABLE:
+        return
+
+    try:
+        # Import Celery signals
+        from celery.signals import (
+            task_prerun, task_postrun, task_success,
+            task_failure, task_retry, worker_ready
+        )
+        
+        # Prometheus metrics are imported here to avoid circular imports
+        from shared.monitoring.metrics import (
+            track_task_start, track_task_complete, 
+            track_task_success, track_task_failure
+        )
+        
+        # Set up signal handlers for task metrics
+        @task_prerun.connect
+        def task_prerun_handler(task_id=None, task=None, *args, **kwargs):
+            """Handle task start event"""
+            try:
+                track_task_start(task.name)
+            except Exception as e:
+                logger.exception(f"Error tracking task start: {e}")
+                
+        @task_postrun.connect
+        def task_postrun_handler(task_id=None, task=None, state=None, *args, **kwargs):
+            """Handle task completion event"""
+            try:
+                track_task_complete(task.name, state)
+            except Exception as e:
+                logger.exception(f"Error tracking task completion: {e}")
+                
+        @task_success.connect
+        def task_success_handler(sender=None, result=None, *args, **kwargs):
+            """Handle task success event"""
+            try:
+                if sender:
+                    track_task_success(sender.name)
+            except Exception as e:
+                logger.exception(f"Error tracking task success: {e}")
+                
+        @task_failure.connect
+        def task_failure_handler(sender=None, exception=None, *args, **kwargs):
+            """Handle task failure event"""
+            try:
+                if sender:
+                    track_task_failure(sender.name, str(exception))
+            except Exception as e:
+                logger.exception(f"Error tracking task failure: {e}")
+                
+        @worker_ready.connect
+        def worker_ready_handler(*args, **kwargs):
+            """Handle worker ready event"""
+            logger.info("Celery worker is ready")
+            
+    except ImportError:
+        logger.warning("Prometheus client not available, task monitoring disabled")
+    except Exception as e:
+        logger.exception(f"Error setting up task monitoring: {e}")
+
+
+class DummyCeleryApp:
+    """
+    Dummy Celery app implementation for when Celery is not available
     
-    @task_prerun.connect
-    def task_prerun_handler(task_id, task, args, kwargs, **extra):
-        """Log when a task starts running"""
-        logger.info(f"Task started: {task.name}[{task_id}]")
+    This provides a minimal API-compatible interface to avoid errors
+    when Celery is not installed but code tries to use it.
+    """
+    def __init__(self):
+        self.conf = type('DummyConf', (), {
+            'update': lambda *args, **kwargs: None,
+            'broker_transport_options': {},
+        })
+        self.tasks = {}
         
-        # Add start time to task request for duration calculation
-        task.request.start_time = datetime.datetime.now()
-        
-        # Import here to avoid circular imports
-        try:
-            from shared.monitoring.prometheus import track_task_execution
-            track_task_execution(
-                task_type=task.name.split('.')[-1],
-                status="started",
-                service=task.name.split('.')[0]
+    def task(self, *args, **kwargs):
+        """Dummy task decorator that just returns the original function"""
+        def decorator(func):
+            self.tasks[func.__name__] = func
+            func.delay = lambda *args, **kwargs: DummyAsyncResult(
+                task_id="dummy",
+                status="FAILURE",
+                result=Exception("Celery not available"),
+                traceback=None
             )
-        except ImportError:
-            pass
+            func.apply_async = lambda *args, **kwargs: func.delay()
+            return func
+        
+        # Handle both @app.task and @app.task()
+        if len(args) == 1 and callable(args[0]):
+            return decorator(args[0])
+        return decorator
     
-    @task_success.connect
-    def task_success_handler(result, **kwargs):
-        """Log when a task completes successfully"""
-        sender = kwargs.get('sender')
-        if not sender:
-            return
+    def send_task(self, *args, **kwargs):
+        """Dummy send_task implementation"""
+        return DummyAsyncResult(
+            task_id="dummy",
+            status="FAILURE",
+            result=Exception("Celery not available"),
+            traceback=None
+        )
+
+
+class DummyAsyncResult:
+    """Dummy AsyncResult implementation for the DummyCeleryApp"""
+    def __init__(self, task_id, status, result, traceback):
+        self.task_id = task_id
+        self.status = status
+        self._result = result
+        self._traceback = traceback
         
-        task_id = sender.request.id
-        task_name = sender.name
+    def get(self, timeout=None, propagate=True, **kwargs):
+        """Get the task result"""
+        if propagate and isinstance(self._result, Exception):
+            raise self._result
+        return self._result
         
-        # Calculate task duration
-        start_time = getattr(sender.request, 'start_time', None)
-        elapsed_time = None
-        if start_time:
-            elapsed_time = (datetime.datetime.now() - start_time).total_seconds()
-            logger.info(f"Task succeeded: {task_name}[{task_id}] in {elapsed_time:.2f}s")
-        else:
-            logger.info(f"Task succeeded: {task_name}[{task_id}]")
+    def ready(self):
+        """Check if the task is ready"""
+        return True
         
-        # Import here to avoid circular imports
-        try:
-            from shared.monitoring.prometheus import track_task_execution
-            track_task_execution(
-                task_type=task_name.split('.')[-1],
-                status="success",
-                service=task_name.split('.')[0],
-                elapsed_time=elapsed_time
-            )
-        except ImportError:
-            pass
-    
-    @task_failure.connect
-    def task_failure_handler(sender, task_id, exception, args, kwargs, **extra):
-        """Log when a task fails"""
-        # Calculate task duration
-        start_time = getattr(sender.request, 'start_time', None)
-        elapsed_time = None
-        if start_time:
-            elapsed_time = (datetime.datetime.now() - start_time).total_seconds()
-            logger.error(f"Task failed: {sender.name}[{task_id}] in {elapsed_time:.2f}s: {exception}")
-        else:
-            logger.error(f"Task failed: {sender.name}[{task_id}]: {exception}")
+    @property
+    def result(self):
+        """Get the task result"""
+        return self._result
         
-        # Import here to avoid circular imports
-        try:
-            from shared.monitoring.prometheus import track_task_execution
-            track_task_execution(
-                task_type=sender.name.split('.')[-1],
-                status="failure",
-                service=sender.name.split('.')[0],
-                elapsed_time=elapsed_time
-            )
-        except ImportError:
-            pass
-    
-    @task_retry.connect
-    def task_retry_handler(sender, request, reason, einfo, **kwargs):
-        """Log when a task is retried"""
-        logger.warning(f"Task retrying: {sender.name}[{request.id}]. Reason: {reason}")
-        
-        # Import here to avoid circular imports
-        try:
-            from shared.monitoring.prometheus import track_task_execution
-            track_task_execution(
-                task_type=sender.name.split('.')[-1],
-                status="retry",
-                service=sender.name.split('.')[0]
-            )
-        except ImportError:
-            pass
+    @property
+    def traceback(self):
+        """Get the task traceback"""
+        return self._traceback
+
+
+# Create global Celery app instance
+celery_app = create_celery_app()
+
+# Export for imports
+__all__ = ["celery_app", "create_celery_app"]

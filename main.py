@@ -9,11 +9,10 @@ import logging
 import requests
 import threading
 from urllib.parse import urljoin
-from app.main import app as fastapi_app
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_wtf.csrf import CSRFProtect, CSRFError
-from utils import check_api_health, api_request
-from monitoring import setup_metrics, track_api_request
+from shared.utils.api_client import check_api_health, api_request
+from shared.monitoring.metrics import setup_metrics, track_api_request
 
 # Configure logging
 logging.basicConfig(level=logging.INFO,
