@@ -380,13 +380,12 @@ def edit_profile(profile_id):
 @app.route('/api-redirect')
 def api_redirect():
     """Redirect to the API documentation"""
-    # Use the current hostname to create a proper absolute URL
-    # rather than hardcoding localhost which won't work in browser environment
-    host = request.headers.get('Host', 'localhost:5000')
-    # Replace port 5000 with 8000 for the API service
-    api_host = host.replace(':5000', ':8000')
-    # Include the /api prefix since the FastAPI router uses this prefix
-    return redirect(f"http://{api_host}/api/docs")
+    # Use the configured API base URL from utils.py for consistency
+    from utils import API_BASE_URL
+    
+    # Redirect to the docs URL at /api/docs
+    docs_url = f"{API_BASE_URL}/api/docs"
+    return redirect(docs_url)
 
 # Run the FastAPI application on a different port
 if __name__ == "__main__":
