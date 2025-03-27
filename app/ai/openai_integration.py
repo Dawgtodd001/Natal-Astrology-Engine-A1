@@ -4,10 +4,13 @@ OpenAI API integration for generating chart interpretations
 import os
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 
 import openai
 from app.utils.logging import get_logger
+
+# For async operation tracking
+from celery.result import AsyncResult
 
 logger = get_logger(__name__)
 
@@ -39,8 +42,9 @@ def validate_openai_api_key() -> bool:
 def generate_chart_interpretation(
     chart_data: Dict[str, Any],
     birth_info: Dict[str, Any],
-    style: Optional[str] = "detailed"
-) -> str:
+    style: Optional[str] = "detailed",
+    async_mode: bool = False
+) -> Union[str, AsyncResult]:
     """
     Generate an AI-powered interpretation of the birth chart
     
@@ -48,9 +52,10 @@ def generate_chart_interpretation(
         chart_data: Complete chart data dictionary
         birth_info: Birth information dictionary
         style: Style of interpretation ("concise", "detailed", "spiritual", "psychological")
+        async_mode: If True, returns a Celery AsyncResult; if False, returns the result directly
         
     Returns:
-        Rendered interpretation text
+        Rendered interpretation text or AsyncResult if async_mode=True
     """
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -140,6 +145,16 @@ Include both strengths and potential challenges.
 Provide specific, personalized insights based on the unique configuration of this chart.
 """
 
+    # If async_mode is True, we'll delegate to Celery task
+    if async_mode:
+        from app.celery_app import celery_app
+        logger.info(f"Delegating {style} chart interpretation to Celery task")
+        task = celery_app.send_task(
+            'app.tasks.interpretation_tasks.generate_chart_interpretation',
+            args=[chart_data, birth_info, style]
+        )
+        return task
+    
     try:
         # Generate interpretation using OpenAI API
         response = openai.chat.completions.create(
@@ -173,8 +188,9 @@ def generate_transit_interpretation(
     transit_aspects: List[Dict[str, Any]],
     birth_info: Dict[str, Any],
     transit_info: Dict[str, Any],
-    style: Optional[str] = "detailed"
-) -> str:
+    style: Optional[str] = "detailed",
+    async_mode: bool = False
+) -> Union[str, AsyncResult]:
     """
     Generate an AI-powered interpretation of transit aspects to a natal chart
     
@@ -185,9 +201,10 @@ def generate_transit_interpretation(
         birth_info: Birth information dictionary
         transit_info: Transit date information dictionary
         style: Style of interpretation ("concise", "detailed", "predictive", "growth")
+        async_mode: If True, returns a Celery AsyncResult; if False, returns the result directly
         
     Returns:
-        Rendered interpretation text
+        Rendered interpretation text or AsyncResult if async_mode=True
     """
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -277,6 +294,16 @@ Focus on current and upcoming transits, their duration, and potential manifestat
 Provide specific, personalized insights on how these transits might affect the native.
 """
 
+    # If async_mode is True, we'll delegate to Celery task
+    if async_mode:
+        from app.celery_app import celery_app
+        logger.info(f"Delegating {style} transit interpretation to Celery task")
+        task = celery_app.send_task(
+            'app.tasks.interpretation_tasks.generate_transit_interpretation',
+            args=[natal_chart, transit_chart, transit_aspects, birth_info, transit_info, style]
+        )
+        return task
+        
     try:
         # Generate interpretation using OpenAI API
         response = openai.chat.completions.create(

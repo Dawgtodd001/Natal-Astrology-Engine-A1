@@ -292,6 +292,18 @@ class ChartInterpretationRequest(ChartRequest):
     template_name: str = Field("basic_text", description="Name of interpretation template to use")
     use_ai: bool = Field(False, description="Whether to use AI-powered interpretation")
     ai_style: Optional[str] = Field(None, description="AI interpretation style (concise, detailed, spiritual, psychological)")
+    async_mode: bool = Field(False, description="Whether to process interpretation asynchronously via Celery")
+
+
+class TransitInterpretationRequest(TransitRequest):
+    """
+    Request model for transit chart interpretation
+    Extends TransitRequest with AI interpretation options
+    """
+    template_name: str = Field("basic_text", description="Name of interpretation template to use")
+    use_ai: bool = Field(False, description="Whether to use AI-powered interpretation")
+    ai_style: Optional[str] = Field(None, description="AI interpretation style (concise, detailed, predictive, growth)")
+    async_mode: bool = Field(False, description="Whether to process interpretation asynchronously via Celery")
 
 
 class PaginationParams(BaseModel):

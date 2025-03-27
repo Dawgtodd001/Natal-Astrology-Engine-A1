@@ -19,7 +19,7 @@ from app.api.admin import validate_admin_password
 from app.database import get_db
 from app.api.schemas import (
     ChartRequest, ChartResponse, ChartInterpretationRequest,
-    TransitRequest, TransitResponse, TransitAspectInfo,
+    TransitRequest, TransitResponse, TransitAspectInfo, TransitInterpretationRequest,
     PaginationParams, PageInfo, PaginatedResponse, ApiKeyResponse,
     ChartCalculationResponse, UserProfileResponse
 )
@@ -239,6 +239,179 @@ async def generate_chart(
         )
 
 
+@router.post("/interpret-transits")
+async def interpret_transits(
+    request: TransitInterpretationRequest,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_api_key)
+):
+    """
+    Generate and return an interpretation of transit aspects to a natal chart
+    
+    Args:
+        request: Transit interpretation request
+        db: Database session
+        api_key: API key for authentication
+        
+    Returns:
+        Text interpretation of the transit aspects
+    """
+    logger.info(
+        "Transit interpretation requested",
+        extra={
+            "api_key": api_key,
+            "birth_date": request.birth_date,
+            "transit_date": request.transit_date,
+            "use_ai": request.use_ai,
+            "async_mode": request.async_mode
+        }
+    )
+    
+    # Apply rate limiting
+    rate_limiter.check_rate_limit(api_key, db)
+    
+    try:
+        # Auto-process the request with model validator to fill in default values
+        request = request.model_validate(request.model_dump())
+        
+        # First, calculate the transit chart
+        transit_data = calculate_transit_chart(
+            birth_date=request.birth_date,
+            birth_time=request.birth_time,
+            birth_latitude=request.birth_latitude,
+            birth_longitude=request.birth_longitude,
+            birth_timezone=request.birth_timezone,
+            transit_date=request.transit_date,
+            transit_time=request.transit_time,
+            transit_latitude=request.transit_latitude,
+            transit_longitude=request.transit_longitude,
+            transit_timezone=request.transit_timezone,
+            house_system=request.house_system,
+            zodiac_type=request.zodiac_type,
+            include_minor_aspects=request.include_minor_aspects,
+            orb_tolerance=request.orb_tolerance
+        )
+        
+        # Create birth info dict for the interpretation
+        birth_info = {
+            "birth_date": request.birth_date,
+            "birth_time": request.birth_time,
+            "latitude": request.birth_latitude,
+            "longitude": request.birth_longitude,
+            "timezone": request.birth_timezone
+        }
+        
+        # Create transit info dict for the interpretation
+        transit_info = {
+            "transit_date": request.transit_date,
+            "transit_time": request.transit_time,
+            "transit_latitude": request.transit_latitude,
+            "transit_longitude": request.transit_longitude,
+            "transit_timezone": request.transit_timezone
+        }
+        
+        # Check if using AI-powered interpretation
+        if request.use_ai:
+            try:
+                from app.ai.openai_integration import generate_transit_interpretation
+                
+                logger.info(
+                    f"Using AI interpretation with style: {request.ai_style or 'detailed'}",
+                    extra={
+                        "ai_style": request.ai_style or "detailed",
+                        "use_ai": True,
+                        "async_mode": request.async_mode
+                    }
+                )
+                
+                # Check if we should use async mode
+                if request.async_mode:
+                    # Generate AI interpretation asynchronously via Celery
+                    task_result = generate_transit_interpretation(
+                        natal_chart=transit_data["natal_chart"],
+                        transit_chart=transit_data["transit_chart"],
+                        transit_aspects=transit_data["transit_aspects"],
+                        birth_info=birth_info,
+                        transit_info=transit_info,
+                        style=request.ai_style or "detailed",
+                        async_mode=True
+                    )
+                    
+                    # Return the task ID with instruction on how to check the result
+                    task_id = task_result.id
+                    logger.info(f"Async AI transit interpretation initiated with task ID: {task_id}")
+                    
+                    # Return a message about the async processing
+                    return JSONResponse(
+                        content={
+                            "status": "processing",
+                            "task_id": task_id,
+                            "message": "Transit chart interpretation is being generated asynchronously.",
+                            "check_result_endpoint": f"/api/tasks/{task_id}"
+                        }
+                    )
+                else:
+                    # Generate AI interpretation synchronously
+                    interpretation = generate_transit_interpretation(
+                        natal_chart=transit_data["natal_chart"],
+                        transit_chart=transit_data["transit_chart"],
+                        transit_aspects=transit_data["transit_aspects"],
+                        birth_info=birth_info,
+                        transit_info=transit_info,
+                        style=request.ai_style or "detailed"
+                    )
+                    
+                    logger.info("AI transit interpretation generated successfully")
+                
+            except ImportError:
+                logger.warning("OpenAI integration not available, falling back to template-based interpretation")
+                interpretation = f"Template-based transit interpretation not implemented yet. Please use AI interpretation."
+            except Exception as e:
+                logger.error(f"Error using AI interpretation: {str(e)}")
+                interpretation = f"AI transit interpretation failed: {str(e)}"
+        else:
+            # Template-based interpretation not implemented for transits
+            interpretation = "Template-based transit interpretation not implemented yet. Please use AI interpretation."
+        
+        logger.info(
+            "Transit interpretation generated successfully",
+            extra={
+                "text_length": len(interpretation),
+                "use_ai": request.use_ai
+            }
+        )
+        
+        # Return the interpretation as a plaintext response
+        return PlainTextResponse(content=interpretation, media_type="text/plain")
+    
+    except ValueError as e:
+        # Handle validation errors
+        handle_exception(
+            e, 
+            status_code=status.HTTP_400_BAD_REQUEST,
+            error_code=ErrorCodes.INVALID_INPUT,
+            message=f"Invalid transit parameters: {str(e)}"
+        )
+    except Exception as e:
+        # Handle other interpretation errors
+        logger.error(
+            f"Transit interpretation failed: {str(e)}",
+            extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "birth_date": request.birth_date,
+                "transit_date": request.transit_date,
+                "traceback": traceback.format_exc()
+            }
+        )
+        handle_exception(
+            e, 
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            error_code=ErrorCodes.CALCULATION_ERROR,
+            message=f"Transit interpretation failed: {str(e)}"
+        )
+
+
 @router.post("/transits", response_model=TransitResponse)
 async def calculate_transits(
     request: TransitRequest,
@@ -412,18 +585,43 @@ async def interpret_chart(
                     f"Using AI interpretation with style: {request.ai_style or 'detailed'}",
                     extra={
                         "ai_style": request.ai_style or "detailed",
-                        "use_ai": True
+                        "use_ai": True,
+                        "async_mode": request.async_mode
                     }
                 )
                 
-                # Generate AI interpretation
-                interpretation = generate_chart_interpretation(
-                    chart_data=chart_data,
-                    birth_info=birth_info,
-                    style=request.ai_style or "detailed"
-                )
-                
-                logger.info("AI interpretation generated successfully")
+                # Check if we should use async mode
+                if request.async_mode:
+                    # Generate AI interpretation asynchronously via Celery
+                    task_result = generate_chart_interpretation(
+                        chart_data=chart_data,
+                        birth_info=birth_info,
+                        style=request.ai_style or "detailed",
+                        async_mode=True
+                    )
+                    
+                    # Return the task ID with instruction on how to check the result
+                    task_id = task_result.id
+                    logger.info(f"Async AI interpretation initiated with task ID: {task_id}")
+                    
+                    # Return a message about the async processing
+                    return JSONResponse(
+                        content={
+                            "status": "processing",
+                            "task_id": task_id,
+                            "message": "Chart interpretation is being generated asynchronously.",
+                            "check_result_endpoint": f"/api/tasks/{task_id}"
+                        }
+                    )
+                else:
+                    # Generate AI interpretation synchronously
+                    interpretation = generate_chart_interpretation(
+                        chart_data=chart_data,
+                        birth_info=birth_info,
+                        style=request.ai_style or "detailed"
+                    )
+                    
+                    logger.info("AI interpretation generated successfully")
                 
             except ImportError:
                 logger.warning("OpenAI integration not available, falling back to template-based interpretation")
@@ -651,6 +849,65 @@ async def update_user_profile(
         handle_exception(e, error_code=ErrorCodes.DATABASE_ERROR)
 
 
+@router.get("/tasks/{task_id}")
+async def get_task_status(
+    task_id: str,
+    api_key: str = Depends(get_api_key)
+):
+    """
+    Get the status of an asynchronous task
+    
+    Args:
+        task_id: Celery task ID
+        api_key: API key for authentication
+        
+    Returns:
+        Task status and result if available
+    """
+    from app.celery_app import celery_app
+    
+    logger.info(f"Task status requested for ID: {task_id}", extra={"api_key": api_key})
+    
+    try:
+        # Get the task result from Celery
+        task_result = celery_app.AsyncResult(task_id)
+        
+        if task_result.ready():
+            if task_result.successful():
+                # Task completed successfully
+                result = task_result.get()
+                logger.info(f"Task {task_id} completed successfully")
+                
+                return {
+                    "status": "completed",
+                    "task_id": task_id,
+                    "result": result
+                }
+            else:
+                # Task failed
+                logger.error(f"Task {task_id} failed: {str(task_result.result)}")
+                return {
+                    "status": "failed",
+                    "task_id": task_id,
+                    "error": str(task_result.result)
+                }
+        else:
+            # Task still in progress
+            return {
+                "status": "processing",
+                "task_id": task_id,
+                "state": task_result.state
+            }
+    except Exception as e:
+        logger.error(f"Error checking task status: {str(e)}")
+        handle_exception(
+            e,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            error_code=ErrorCodes.INTERNAL_ERROR,
+            message=f"Error checking task status: {str(e)}"
+        )
+
+
 @router.get("/health")
 async def health_check(db: Session = Depends(get_db)):
     """
@@ -688,11 +945,41 @@ async def health_check(db: Session = Depends(get_db)):
     except Exception as e:
         api_keys_status = "unhealthy"
     
+    # Check Redis and Celery status
+    redis_status = "healthy"
+    celery_status = "healthy"
+    redis_error = None
+    try:
+        # Check Redis connection by using it as a simple key-value store
+        from app.celery_app import redis_client
+        redis_client.set("health_check", "ok")
+        redis_value = redis_client.get("health_check")
+        if redis_value != b"ok":
+            redis_status = "unhealthy"
+            redis_error = "Redis value verification failed"
+    except Exception as e:
+        redis_status = "unhealthy"
+        redis_error = str(e)
+        # If Redis is down, Celery likely can't function either
+        celery_status = "unhealthy"
+    
+    # If Redis is healthy, try to ping the Celery workers
+    if redis_status == "healthy":
+        try:
+            from app.celery_app import celery_app
+            worker_stats = celery_app.control.inspect().stats()
+            if not worker_stats:
+                celery_status = "warning"
+                redis_error = "No Celery workers are online"
+        except Exception as e:
+            celery_status = "warning"
+            redis_error = f"Celery inspection error: {str(e)}"
+    
     # Overall status
     status = "healthy"
-    if db_status == "unhealthy" or api_keys_status == "unhealthy":
+    if db_status == "unhealthy" or api_keys_status == "unhealthy" or redis_status == "unhealthy":
         status = "unhealthy"
-    elif api_keys_status == "warning":
+    elif api_keys_status == "warning" or celery_status == "warning":
         status = "warning"
     
     response_time = time.time() - start_time
@@ -709,6 +996,13 @@ async def health_check(db: Session = Depends(get_db)):
             "api_keys": {
                 "status": api_keys_status,
                 "count": api_keys_count
+            },
+            "redis": {
+                "status": redis_status,
+                "error": redis_error
+            },
+            "celery": {
+                "status": celery_status
             }
         },
         "response_time_seconds": round(response_time, 3)
