@@ -23,10 +23,11 @@ app = FastAPI(
     title="Natal Astrology Engine",
     description="API for generating and interpreting astrological birth charts",
     version="1.0.0",
-    docs_url="/api/docs",  # Update to match the router prefix
-    redoc_url="/api/redoc",  # Update to match the router prefix
-    openapi_url="/api/openapi.json",  # Also update the OpenAPI schema URL
-    swagger_ui_oauth2_redirect_url="/api/docs/oauth2-redirect"  # Update OAuth redirect URL
+    # Set docs URLs without the /api prefix since we'll add it with the router
+    docs_url="/docs",  
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+    swagger_ui_oauth2_redirect_url="/docs/oauth2-redirect"
 )
 
 # Configure CORS
@@ -42,6 +43,7 @@ app.add_middleware(
 setup_middlewares(app)
 
 # Include API router
+# This will make all routes, including the docs, available under /api prefix
 app.include_router(api_router, prefix="/api")
 
 # Mount static files

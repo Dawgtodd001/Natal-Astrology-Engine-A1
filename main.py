@@ -384,6 +384,7 @@ def api_redirect():
     # or the user's actual browser URL rather than localhost
     
     # For Replit, this will be a path-relative URL to the docs page
+    # Make sure this URL matches the FastAPI docs configuration
     docs_url = "/api/docs"
     
     return redirect(docs_url)
