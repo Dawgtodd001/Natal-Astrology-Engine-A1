@@ -122,8 +122,8 @@ function tryServerSideGeocoding(locationString, successCallback, errorCallback) 
     // Try a direct geocoding request with better error handling
     // First, look for cities with the same name in our expanded list
     // This is a more reliable approach than relying solely on external API
-    const presetMatch = findPresetLocation(locationString);
-    if (presetMatch) {
+    const directPresetMatch = findPresetLocation(locationString);
+    if (directPresetMatch) {
         // Remove loading state
         if (locationField) {
             locationField.classList.remove('loading');
@@ -132,10 +132,10 @@ function tryServerSideGeocoding(locationString, successCallback, errorCallback) 
         // Call success callback with the preset data
         if (successCallback) {
             successCallback(
-                presetMatch.lat, 
-                presetMatch.lng, 
-                presetMatch.name, 
-                presetMatch.timezone
+                directPresetMatch.lat, 
+                directPresetMatch.lng, 
+                directPresetMatch.name, 
+                directPresetMatch.timezone
             );
         }
         return;
@@ -152,9 +152,7 @@ function tryServerSideGeocoding(locationString, successCallback, errorCallback) 
             'User-Agent': 'NatalAstrologyChart/1.0 (https://replit.com/)',
             'Accept': 'application/json',
             'Referer': 'https://replit.com/'
-        },
-        // Set a longer timeout to wait for response
-        timeout: 5000
+        }
     })
     .then(response => {
         if (!response.ok) {
