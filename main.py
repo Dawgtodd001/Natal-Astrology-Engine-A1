@@ -380,7 +380,12 @@ def edit_profile(profile_id):
 @app.route('/api-redirect')
 def api_redirect():
     """Redirect to the API documentation"""
-    return redirect(f"{API_BASE_URL}/docs")
+    # Use the current hostname to create a proper absolute URL
+    # rather than hardcoding localhost which won't work in browser environment
+    host = request.headers.get('Host', 'localhost:5000')
+    # Replace port 5000 with 8000 for the API service
+    api_host = host.replace(':5000', ':8000')
+    return redirect(f"http://{api_host}/docs")
 
 # Run the FastAPI application on a different port
 if __name__ == "__main__":
