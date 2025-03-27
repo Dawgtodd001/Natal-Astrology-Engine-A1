@@ -13,10 +13,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi import HTTPException
 
 from app.api.endpoints import router as api_router
+from app.api.cache_monitoring import router as cache_router
 from app.api.middlewares import setup_middlewares
 from app.database import init_db
 from app.utils.logging import setup_logging, get_logger
 from app.utils.error_handling import handle_exception, ErrorCodes
+from app.utils.redis_cache import is_redis_available
 
 # Set up structured logging
 setup_logging(level=logging.INFO)
@@ -46,9 +48,12 @@ app.add_middleware(
 # Set up middlewares
 setup_middlewares(app)
 
-# Include API router
+# Include API routers
 # This will make all routes, including the docs, available under /api prefix
 app.include_router(api_router, prefix="/api")
+
+# Include cache monitoring router under /api/cache
+app.include_router(cache_router, prefix="/api/cache", tags=["Cache Monitoring"])
 
 # Mount static files
 try:
@@ -202,15 +207,23 @@ async def read_root():
     
     return FileResponse("static/index.html")
 
-# Initialize database on startup
+# Initialize database and check Redis on startup
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting application")
     try:
+        # Initialize database
         init_db()
         logger.info("Database initialized successfully")
+        
+        # Check Redis availability
+        redis_available = is_redis_available()
+        if redis_available:
+            logger.info("Redis cache is available")
+        else:
+            logger.warning("Redis cache is not available - performance may be degraded")
     except Exception as e:
-        logger.error(f"Failed to initialize database: {str(e)}")
+        logger.error(f"Failed to initialize application: {str(e)}")
         raise
 
 @app.on_event("shutdown")

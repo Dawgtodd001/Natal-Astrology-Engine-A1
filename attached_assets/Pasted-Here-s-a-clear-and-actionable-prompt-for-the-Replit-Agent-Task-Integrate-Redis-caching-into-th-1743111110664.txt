@@ -1,0 +1,63 @@
+Here’s a clear and actionable prompt for the Replit Agent:
+
+⸻
+
+Task:
+Integrate Redis caching into the Natal Astrology Engine to optimize chart calculations.
+
+⸻
+
+Objective:
+	•	Implement Redis caching to store and retrieve calculated charts based on user input.
+	•	Ensure faster response times by avoiding redundant computations for identical input data.
+	•	Maintain flexibility for cache expiration and management.
+
+⸻
+
+Steps to Follow:
+	1.	Install Redis and Required Packages:
+	•	Ensure Redis is installed on the environment (locally or using Docker).
+	•	Install necessary Python packages using:
+
+pip install redis fastapi[all] uvicorn
+
+
+	2.	Configure Redis Connection:
+	•	Create a cache.py module to manage Redis connections and cache operations.
+	•	Implement functions for storing (set_cache) and retrieving (get_cache) data using JSON serialization.
+	3.	Integrate Caching in FastAPI:
+	•	Update the chart calculation endpoint (/calculate-chart) in main.py to:
+	•	Generate a unique cache key using user input.
+	•	Perform a Redis lookup using get_cache().
+	•	If no cache is found, calculate the chart, store it using set_cache(), and return the result.
+	4.	Logging and Error Management:
+	•	Implement appropriate logging using Python’s logging module.
+	•	Ensure exceptions are handled and logged clearly.
+	5.	Testing:
+Create and execute the following test cases:
+	•	Initial Calculation and Cache Creation: Confirm that new requests trigger chart calculation and cache storage.
+	•	Cache Hit: Validate that repeated requests return results from Redis with a source: cache indicator.
+	•	Cache Expiration: Test cache expiration using short lifetimes to ensure fresh recalculations after expiration.
+	6.	Additional Enhancements:
+	•	Implement optional cache invalidation for data updates.
+	•	Support adjustable expiration times for complex chart calculations.
+	•	Provide Redis monitoring options using RedisInsight or Prometheus.
+
+⸻
+
+Environment Information:
+	•	Platform: FastAPI, Python
+	•	Caching Service: Redis (localhost or Docker)
+	•	Deployment: Replit or Docker-based Redis setup
+	•	Testing Tool: Postman or any HTTP client for API requests
+
+⸻
+
+Additional Notes:
+	•	Use appropriate logs to track cache hits, misses, and errors.
+	•	Maintain clean, reusable code using error-handling best practices.
+	•	Optionally, integrate Redis monitoring tools for visibility into cache performance.
+
+⸻
+
+If further guidance is needed, such as setting up Redis on Replit using Docker or external services like Upstash, let me know!

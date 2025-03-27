@@ -21,4 +21,5 @@ dependencies = [
     "timezonefinder>=6.5.9",
     "uvicorn>=0.34.0",
     "openai>=1.68.2",
+    "redis>=5.2.1",
 ]

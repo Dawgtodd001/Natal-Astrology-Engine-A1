@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Redis Cache Status - Natal Astrology Engine{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">Redis Cache Status</h1>
+    
+    {% if not redis_available %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle"></i> Redis cache is not available. Performance may be degraded.
+    </div>
+    {% else %}
+    <div class="alert alert-success">
+        <i class="fas fa-check-circle"></i> Redis cache is connected and operational.
+    </div>
+    
+    <!-- Cache Statistics -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4><i class="fas fa-chart-bar"></i> Cache Statistics</h4>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Hit Rate</h5>
+                    <div class="progress mb-3" style="height: 25px;">
+                        {% set hit_rate = (stats.hits / (stats.hits + stats.misses) * 100) if (stats.hits + stats.misses) > 0 else 0 %}
+                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ hit_rate }}%;" 
+                             aria-valuenow="{{ hit_rate }}" aria-valuemin="0" aria-valuemax="100">
+                            {{ "%.1f"|format(hit_rate) }}%
+                        </div>
+                    </div>
+                    <p>
+                        <strong>Hits:</strong> {{ stats.hits }}<br>
+                        <strong>Misses:</strong> {{ stats.misses }}
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <h5>Memory Usage</h5>
+                    <div class="progress mb-3" style="height: 25px;">
+                        {% set memory_percent = (stats.used_memory / stats.max_memory * 100) if stats.max_memory else 0 %}
+                        <div class="progress-bar bg-{{ 'warning' if memory_percent > 70 else 'info' }}" 
+                             role="progressbar" style="width: {{ memory_percent }}%;" 
+                             aria-valuenow="{{ memory_percent }}" aria-valuemin="0" aria-valuemax="100">
+                            {{ "%.1f"|format(memory_percent) }}%
+                        </div>
+                    </div>
+                    <p>
+                        <strong>Used:</strong> {{ "%.2f"|format(stats.used_memory / 1024 / 1024) }} MB<br>
+                        <strong>Max:</strong> {% if stats.max_memory %}{{ "%.2f"|format(stats.max_memory / 1024 / 1024) }} MB{% else %}Unlimited{% endif %}
+                    </p>
+                </div>
+            </div>
+            
+            <div class="row mt-3">
+                <div class="col-md-4">
+                    <div class="card bg-dark">
+                        <div class="card-body">
+                            <h5 class="card-title">Total Keys</h5>
+                            <p class="card-text display-4">{{ stats.key_count }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-dark">
+                        <div class="card-body">
+                            <h5 class="card-title">Uptime</h5>
+                            <p class="card-text display-4">{{ stats.uptime_days }} days</p>
+                            <p class="text-muted">{{ stats.uptime_seconds }} seconds</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-dark">
+                        <div class="card-body">
+                            <h5 class="card-title">Operations</h5>
+                            <p class="card-text display-4">{{ stats.commands_processed }}</p>
+                            <p class="text-muted">{{ "%.1f"|format(stats.commands_processed / stats.uptime_seconds) }} ops/sec</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Cache Keys -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4><i class="fas fa-key"></i> Cache Keys</h4>
+            <form method="get" action="{{ url_for('cache_status') }}" class="d-flex">
+                <input type="hidden" name="admin_password" value="{{ admin_password }}">
+                <input type="text" name="pattern" class="form-control me-2" 
+                       value="{{ pattern }}" placeholder="Filter pattern (e.g., astro_chart:*)">
+                <button type="submit" class="btn btn-primary">Filter</button>
+            </form>
+        </div>
+        <div class="card-body">
+            {% if keys %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Key</th>
+                                <th>Type</th>
+                                <th>TTL (sec)</th>
+                                <th>Size (bytes)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key in keys %}
+                            <tr>
+                                <td><code>{{ key.key }}</code></td>
+                                <td>{{ key.type }}</td>
+                                <td>{{ key.ttl if key.ttl != -1 else 'No expiry' }}</td>
+                                <td>{{ key.size }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if keys|length >= 50 %}
+                <div class="alert alert-info">
+                    Showing first 50 keys. Use the filter to narrow down results.
+                </div>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-info">
+                    No keys found matching the pattern "{{ pattern }}".
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Flush Cache -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4><i class="fas fa-trash-alt"></i> Cache Management</h4>
+        </div>
+        <div class="card-body">
+            <p class="text-warning">
+                <i class="fas fa-exclamation-triangle"></i> Warning: Flushing the cache will delete all cached data. 
+                This operation cannot be undone.
+            </p>
+            <form method="post" action="{{ url_for('flush_cache') }}" 
+                  onsubmit="return confirm('Are you sure you want to flush the Redis cache? This will delete all cached data.');">
+                <input type="hidden" name="admin_password" value="{{ admin_password }}">
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-trash-alt"></i> Flush Cache
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="mt-4">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Home
+        </a>
+    </div>
+</div>
+{% endblock %}

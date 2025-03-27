@@ -361,6 +361,96 @@ def house_systems():
             
         return redirect(url_for('index'))
 
+@app.route('/cache-status')
+def cache_status():
+    """Display Redis cache status and statistics"""
+    # Only admin can access this page
+    admin_password = request.args.get("admin_password")
+    
+    if not admin_password:
+        flash("Admin password is required to view cache status", "danger")
+        return redirect(url_for('index'))
+    
+    # Pattern for filtering keys
+    pattern = request.args.get("pattern", "astro_chart:*")
+    
+    # Check if Redis is available via health endpoint
+    redis_available = False
+    stats = {}
+    keys = []
+    
+    try:
+        # Check Redis health
+        response = requests.get(f"{API_BASE_URL}/cache/health")
+        if response.status_code == 200:
+            redis_available = response.json().get('available', False)
+            
+            if redis_available:
+                # Get Redis stats
+                stats_response = requests.get(
+                    f"{API_BASE_URL}/cache/stats",
+                    params={"admin_password": admin_password}
+                )
+                
+                if stats_response.status_code == 200:
+                    stats = stats_response.json()
+                else:
+                    flash(f"Error retrieving Redis stats: {stats_response.text}", "danger")
+                
+                # Get Redis keys
+                keys_response = requests.get(
+                    f"{API_BASE_URL}/cache/keys",
+                    params={
+                        "admin_password": admin_password,
+                        "pattern": pattern,
+                        "limit": 50
+                    }
+                )
+                
+                if keys_response.status_code == 200:
+                    keys = keys_response.json()
+                else:
+                    flash(f"Error retrieving Redis keys: {keys_response.text}", "danger")
+    except Exception as e:
+        app.logger.error(f"Error accessing cache endpoints: {str(e)}")
+        flash(f"Error accessing cache: {str(e)}", "danger")
+    
+    return render_template(
+        'cache_status.html',
+        redis_available=redis_available,
+        stats=stats,
+        keys=keys,
+        pattern=pattern,
+        admin_password=admin_password
+    )
+
+@app.route('/flush-cache', methods=['POST'])
+def flush_cache():
+    """Flush Redis cache"""
+    admin_password = request.form.get("admin_password")
+    
+    if not admin_password:
+        flash("Admin password is required to flush cache", "danger")
+        return redirect(url_for('index'))
+    
+    try:
+        # Call flush endpoint
+        response = requests.delete(
+            f"{API_BASE_URL}/cache/flush",
+            params={"admin_password": admin_password}
+        )
+        
+        if response.status_code == 200:
+            flash("Redis cache flushed successfully", "success")
+        else:
+            flash(f"Error flushing Redis cache: {response.text}", "danger")
+    except Exception as e:
+        app.logger.error(f"Error flushing cache: {str(e)}")
+        flash(f"Error flushing cache: {str(e)}", "danger")
+    
+    # Redirect back to cache status page
+    return redirect(url_for('cache_status', admin_password=admin_password))
+
 @app.route('/profiles')
 def profiles():
     """Display user profiles"""

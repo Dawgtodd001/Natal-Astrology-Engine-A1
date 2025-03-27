@@ -3,6 +3,7 @@ Core functionality for natal chart calculations
 """
 from typing import Dict, List, Any, Optional
 import datetime
+import logging
 from flatlib.datetime import Datetime
 from flatlib.geopos import GeoPos
 from flatlib.chart import Chart
@@ -10,8 +11,13 @@ from flatlib import const
 
 from app.core.aspects import calculate_aspects
 from app.core.houses import get_house_system_code, calculate_houses
+from app.utils.redis_cache import redis_cache_decorator
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
+@redis_cache_decorator()
 def create_natal_chart(
     birth_date: str,
     birth_time: str,
@@ -23,6 +29,8 @@ def create_natal_chart(
 ) -> Dict[str, Any]:
     """
     Generate a complete natal chart based on birth information
+    
+    This function is decorated with Redis caching to improve performance for repeated calculations.
     
     Args:
         birth_date: Birth date in YYYY-MM-DD format
