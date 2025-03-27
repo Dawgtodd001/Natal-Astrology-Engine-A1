@@ -18,6 +18,7 @@
                 {% endif %}
                 
                 <form method="post" action="{{ url_for('chart') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label for="birth_date" class="form-label">Birth Date</label>
                         <input type="date" class="form-control" id="birth_date" name="birth_date" value="{{ profile.birth_date if profile else '' }}" required>

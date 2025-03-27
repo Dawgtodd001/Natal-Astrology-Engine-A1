@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Natal Astrology Engine - Chart Interpretation{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h2 class="h5 mb-0">Generate Chart Interpretation</h2>
+            </div>
+            <div class="card-body">
+                {% if not has_chart %}
+                <div class="alert alert-warning mb-3">
+                    <h5>No Chart Data Available</h5>
+                    <p>Please generate a chart first before requesting an interpretation.</p>
+                    <a href="{{ url_for('chart') }}" class="btn btn-primary">Generate Chart</a>
+                </div>
+                {% else %}
+                <div class="alert alert-info mb-3">
+                    <h5>Chart Data Available</h5>
+                    <p>Using birth data for interpretation: {{ birth_data.get('birth_date', '') }} at {{ birth_data.get('birth_time', '') }}</p>
+                </div>
+                
+                <form method="post" action="{{ url_for('interpret') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="template_name" class="form-label">Interpretation Template</label>
+                        <select class="form-select" id="template_name" name="template_name">
+                            <option value="basic_text" selected>Basic Text - Plain language summary</option>
+                            <option value="detailed_markdown">Detailed Markdown - Comprehensive analysis</option>
+                            <option value="simple_html">Simple HTML - Formatted for web display</option>
+                        </select>
+                        <div class="form-text">Select the template style for your interpretation.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="house_system" class="form-label">House System</label>
+                        <select class="form-select" id="house_system" name="house_system">
+                            {% for system_id, description in house_systems.items() %}
+                                <option value="{{ system_id }}" {% if system_id == "placidus" %}selected{% endif %}>
+                                    {{ system_id|capitalize }} - {{ description|truncate(50) }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Select the house system to use for interpretation.</div>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="include_aspects" name="include_aspects" checked>
+                        <label class="form-check-label" for="include_aspects">
+                            Include planetary aspects
+                        </label>
+                        <div class="form-text">Include analysis of planetary aspects and their meanings.</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Generate Interpretation</button>
+                        <a href="{{ url_for('chart') }}" class="btn btn-outline-secondary mt-2">
+                            <i class="fa fa-chart-bar"></i> Return to Chart Generation
+                        </a>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add any client-side validation or dynamic behavior here
+    });
+</script>
+{% endblock %}

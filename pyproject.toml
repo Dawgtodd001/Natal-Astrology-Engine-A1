@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "email-validator>=2.2.0",
     "fastapi>=0.115.12",
+    "flask-wtf>=1.2.2",
     "flask>=3.1.0",
     "flask-sqlalchemy>=3.1.1",
     "flatlib>=0.2.3",

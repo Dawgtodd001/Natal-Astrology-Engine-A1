@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ error_title or 'Error' }} - Natal Astrology Engine{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h2 class="h4 mb-0">{{ error_title or 'Error' }}</h2>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger">
+                        <i class="fa fa-exclamation-triangle me-2"></i>
+                        {{ error_message or 'An error occurred. Please try again or contact support if the problem persists.' }}
+                    </div>
+                    
+                    <div class="mt-4 text-center">
+                        <a href="{{ url_for('index') }}" class="btn btn-primary">
+                            <i class="fa fa-home me-2"></i> Return to Home
+                        </a>
+                        
+                        <button class="btn btn-secondary ms-2" onclick="window.history.back();">
+                            <i class="fa fa-arrow-left me-2"></i> Go Back
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

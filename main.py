@@ -9,6 +9,7 @@ import requests
 from urllib.parse import urljoin
 from app.main import app as fastapi_app
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask_wtf.csrf import CSRFProtect, CSRFError
 
 # Create a Flask app as the web interface
 app = Flask(__name__, 
@@ -17,6 +18,29 @@ app = Flask(__name__,
 
 # Setup a secret key, required by sessions
 app.secret_key = os.environ.get("SESSION_SECRET") or "natal_astrology_web_secret_key"
+
+# Setup CSRF protection
+csrf = CSRFProtect(app)
+
+# CSRF error handler
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    return render_template('error.html', 
+                          error_title="Security Error (CSRF)",
+                          error_message="The form submission failed a security check. Please try again."), 400
+
+# Generic error handlers
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('error.html',
+                          error_title="Page Not Found",
+                          error_message="The page you requested could not be found."), 404
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    return render_template('error.html',
+                          error_title="Server Error",
+                          error_message="An internal server error occurred. Please try again later."), 500
 
 # Configuration
 API_BASE_URL = os.environ.get("API_BASE_URL") or "http://localhost:8000"
