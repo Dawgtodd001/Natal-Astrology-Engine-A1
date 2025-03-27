@@ -29,6 +29,17 @@
                         <div class="form-text">For accurate results, please provide the exact birth time.</div>
                     </div>
                     
+                    <div class="mb-3">
+                        <label for="location" class="form-label">Location</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="location" name="location" placeholder="Enter city, state, or country">
+                            <button class="btn btn-outline-primary" type="button" onclick="updateLocationFields(document.getElementById('location').value)">
+                                <i class="fa fa-search"></i> Lookup
+                            </button>
+                        </div>
+                        <div id="location-result" class="form-text"></div>
+                    </div>
+                    
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="latitude" class="form-label">Latitude</label>
@@ -94,10 +105,24 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/geocode.js') }}"></script>
 <script>
     function fillLocation(city, lat, lng) {
         document.getElementById('latitude').value = lat;
         document.getElementById('longitude').value = lng;
+        
+        // Update timezone based on location
+        if (city === 'New York') {
+            document.getElementById('timezone').value = 'America/New_York';
+        } else if (city === 'London') {
+            document.getElementById('timezone').value = 'Europe/London';
+        } else if (city === 'Tokyo') {
+            document.getElementById('timezone').value = 'Asia/Tokyo';
+        } else if (city === 'Sydney') {
+            document.getElementById('timezone').value = 'Australia/Sydney';
+        } else if (city === 'Boise') {
+            document.getElementById('timezone').value = 'America/Boise';
+        }
     }
     
     // Set default date/time values only if no profile is loaded
