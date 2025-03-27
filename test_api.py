@@ -113,6 +113,75 @@ def test_house_systems():
     else:
         print("House systems test failed")
         return False
+        
+def test_transit_calculation():
+    """Test the transit calculation endpoint"""
+    print("\n=== Testing /api/transits endpoint ===")
+    
+    data = {
+        "birth_date": "2000-04-11",
+        "birth_time": "12:07",
+        "birth_latitude": 43.6159,
+        "birth_longitude": -116.2023,
+        "birth_city": "Boise, USA, Idaho",
+        "transit_date": "2025-03-26",
+        "transit_time": "16:36",
+        "transit_latitude": 43.6159,
+        "transit_longitude": -116.2023,
+        "transit_city": "Boise, USA, Idaho",
+        "house_system": "placidus",
+        "include_minor_aspects": True,
+        "orb_tolerance": 3.0
+    }
+    
+    response = run_curl_command("/api/transits", data=data, method="POST", api_key="test_key_1234567890")
+    
+    if not response:
+        print("Transit calculation test failed: No response")
+        return False
+        
+    # Verify the result has the expected structure
+    if "natal_chart" not in response:
+        print("Transit calculation test failed: Missing natal chart in response")
+        return False
+        
+    if "transit_chart" not in response:
+        print("Transit calculation test failed: Missing transit chart in response")
+        return False
+        
+    if "transit_aspects" not in response:
+        print("Transit calculation test failed: Missing transit aspects in response")
+        return False
+        
+    if "aspect_grid" not in response:
+        print("Transit calculation test failed: Missing aspect grid in response")
+        return False
+    
+    # Check chart types
+    if response["natal_chart"]["chart_type"] != "natal":
+        print("Transit calculation test failed: Incorrect natal chart type")
+        return False
+        
+    if response["transit_chart"]["chart_type"] != "transit":
+        print("Transit calculation test failed: Incorrect transit chart type")
+        return False
+    
+    # Verify we have transit aspects
+    if len(response["transit_aspects"]) == 0:
+        print("Transit calculation test failed: No transit aspects calculated")
+        return False
+    
+    # Verify aspect grid has entries
+    if len(response["aspect_grid"]) == 0:
+        print("Transit calculation test failed: Empty aspect grid")
+        return False
+    
+    print("Transit calculation test passed!")
+    # Print a few transit aspects as a sample
+    print("Transit aspects sample:")
+    for aspect in response.get("transit_aspects", [])[:3]:
+        print(f"{aspect['from_planet']} {aspect['aspect_type']} {aspect['to_planet']} (orb: {aspect['orb']}°)")
+    return True
 
 def main():
     """Main test function"""
@@ -122,7 +191,8 @@ def main():
         test_health_endpoint,
         test_chart_generation,
         test_chart_interpretation,
-        test_house_systems
+        test_house_systems,
+        test_transit_calculation
     ]
     
     results = []

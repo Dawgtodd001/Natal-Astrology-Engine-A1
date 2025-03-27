@@ -19,6 +19,7 @@ from app.api.admin import validate_admin_password
 from app.database import get_db
 from app.api.schemas import (
     ChartRequest, ChartResponse, ChartInterpretationRequest,
+    TransitRequest, TransitResponse, TransitAspectInfo,
     PaginationParams, PageInfo, PaginatedResponse, ApiKeyResponse,
     ChartCalculationResponse, UserProfileResponse
 )
@@ -26,6 +27,7 @@ from app.api.dependencies import get_api_key, RateLimiter
 from app.core.chart import create_natal_chart
 from app.core.houses import get_available_house_systems
 from app.core.interpretation import render_interpretation
+from app.core.transits import calculate_transit_chart
 from app.models import ChartCalculation, ApiKey
 from app.utils.logging import get_logger
 
@@ -234,6 +236,112 @@ async def generate_chart(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             error_code=ErrorCodes.CALCULATION_ERROR,
             message=f"Chart calculation failed: {str(e)}"
+        )
+
+
+@router.post("/transits", response_model=TransitResponse)
+async def calculate_transits(
+    request: TransitRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_api_key)
+):
+    """
+    Calculate transit chart and transit-to-natal aspects
+    
+    Args:
+        request: Transit request data
+        background_tasks: FastAPI background tasks
+        db: Database session
+        api_key: API key for authentication
+        
+    Returns:
+        Transit chart data with natal chart and aspects
+    """
+    logger.info(
+        "Transit calculation requested",
+        extra={
+            "api_key": api_key,
+            "birth_date": request.birth_date,
+            "transit_date": request.transit_date,
+            "house_system": request.house_system,
+            "include_minor_aspects": request.include_minor_aspects
+        }
+    )
+    
+    # Apply rate limiting
+    rate_limiter.check_rate_limit(api_key, db)
+    
+    try:
+        # Auto-process the request with model validator to fill in default values
+        request = request.model_validate(request.model_dump())
+        
+        # Now all values should be present and validated
+        transit_data = calculate_transit_chart(
+            birth_date=request.birth_date,
+            birth_time=request.birth_time,
+            birth_latitude=request.birth_latitude,
+            birth_longitude=request.birth_longitude,
+            birth_timezone=request.birth_timezone,
+            transit_date=request.transit_date,
+            transit_time=request.transit_time,
+            transit_latitude=request.transit_latitude,
+            transit_longitude=request.transit_longitude,
+            transit_timezone=request.transit_timezone,
+            house_system=request.house_system,
+            zodiac_type=request.zodiac_type,
+            include_minor_aspects=request.include_minor_aspects,
+            orb_tolerance=request.orb_tolerance
+        )
+        
+        logger.info(
+            "Transit chart generated successfully",
+            extra={
+                "transit_aspect_count": len(transit_data["transit_aspects"]),
+                "house_system": request.house_system
+            }
+        )
+        
+        # Log the calculation in the background
+        background_tasks.add_task(
+            log_chart_calculation,
+            db=db,
+            birth_date=request.birth_date,
+            birth_time=request.birth_time,
+            latitude=request.birth_latitude,
+            longitude=request.birth_longitude,
+            timezone=request.birth_timezone,
+            house_system=request.house_system,
+            zodiac_type=request.zodiac_type
+        )
+        
+        return transit_data
+    
+    except ValueError as e:
+        # Handle validation errors
+        handle_exception(
+            e, 
+            status_code=status.HTTP_400_BAD_REQUEST,
+            error_code=ErrorCodes.INVALID_INPUT,
+            message=f"Invalid transit parameters: {str(e)}"
+        )
+    except Exception as e:
+        # Handle other calculation errors
+        logger.error(
+            f"Transit calculation failed: {str(e)}",
+            extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "birth_date": request.birth_date,
+                "transit_date": request.transit_date,
+                "traceback": traceback.format_exc()
+            }
+        )
+        handle_exception(
+            e, 
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            error_code=ErrorCodes.CALCULATION_ERROR,
+            message=f"Transit calculation failed: {str(e)}"
         )
 
 
