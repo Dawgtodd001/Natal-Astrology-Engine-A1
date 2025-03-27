@@ -10,34 +10,41 @@
                 <h2 class="h5 mb-0">Generate Natal Chart</h2>
             </div>
             <div class="card-body">
+                {% if profile %}
+                <div class="alert alert-info mb-3">
+                    <h5>Using Profile: {{ profile.name }}</h5>
+                    <p>Birth data loaded from saved profile.</p>
+                </div>
+                {% endif %}
+                
                 <form method="post" action="{{ url_for('chart') }}">
                     <div class="mb-3">
                         <label for="birth_date" class="form-label">Birth Date</label>
-                        <input type="date" class="form-control" id="birth_date" name="birth_date" required>
+                        <input type="date" class="form-control" id="birth_date" name="birth_date" value="{{ profile.birth_date if profile else '' }}" required>
                     </div>
                     
                     <div class="mb-3">
                         <label for="birth_time" class="form-label">Birth Time (24-hour format)</label>
-                        <input type="time" class="form-control" id="birth_time" name="birth_time" required>
+                        <input type="time" class="form-control" id="birth_time" name="birth_time" value="{{ profile.birth_time if profile else '' }}" required>
                         <div class="form-text">For accurate results, please provide the exact birth time.</div>
                     </div>
                     
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="latitude" class="form-label">Latitude</label>
-                            <input type="number" class="form-control" id="latitude" name="latitude" step="0.0001" min="-90" max="90" required>
+                            <input type="number" class="form-control" id="latitude" name="latitude" step="0.0001" min="-90" max="90" value="{{ profile.latitude if profile else '' }}" required>
                             <div class="form-text">Decimal degrees (e.g., 40.7128 for New York)</div>
                         </div>
                         <div class="col-md-6">
                             <label for="longitude" class="form-label">Longitude</label>
-                            <input type="number" class="form-control" id="longitude" name="longitude" step="0.0001" min="-180" max="180" required>
+                            <input type="number" class="form-control" id="longitude" name="longitude" step="0.0001" min="-180" max="180" value="{{ profile.longitude if profile else '' }}" required>
                             <div class="form-text">Decimal degrees (e.g., -74.0060 for New York)</div>
                         </div>
                     </div>
                     
                     <div class="mb-3">
                         <label for="timezone" class="form-label">Timezone (optional)</label>
-                        <input type="text" class="form-control" id="timezone" name="timezone">
+                        <input type="text" class="form-control" id="timezone" name="timezone" value="{{ profile.timezone if profile else '' }}">
                         <div class="form-text">IANA timezone name (e.g., America/New_York) or common name (e.g., Mountain Standard). If left empty, will be auto-detected from coordinates.</div>
                     </div>
                     
@@ -52,8 +59,11 @@
                         </select>
                     </div>
                     
-                    <div class="d-grid">
+                    <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary">Generate Chart</button>
+                        <a href="{{ url_for('profiles') }}" class="btn btn-outline-secondary mt-2">
+                            <i class="fa fa-user"></i> Manage User Profiles
+                        </a>
                     </div>
                 </form>
             </div>
@@ -90,16 +100,22 @@
         document.getElementById('longitude').value = lng;
     }
     
-    // Set default date/time values
+    // Set default date/time values only if no profile is loaded
     document.addEventListener('DOMContentLoaded', function() {
-        // Set to current date
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
+        // Check if we have profile data loaded already
+        const hasProfileData = {% if profile %}true{% else %}false{% endif %};
         
-        document.getElementById('birth_date').value = `${year}-${month}-${day}`;
-        document.getElementById('birth_time').value = '12:00';
+        // Only set defaults if we don't have profile data
+        if (!hasProfileData && !document.getElementById('birth_date').value) {
+            // Set to current date
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            
+            document.getElementById('birth_date').value = `${year}-${month}-${day}`;
+            document.getElementById('birth_time').value = '12:00';
+        }
     });
 </script>
 {% endblock %}

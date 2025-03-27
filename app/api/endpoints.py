@@ -20,7 +20,7 @@ from app.database import get_db
 from app.api.schemas import (
     ChartRequest, ChartResponse, ChartInterpretationRequest,
     PaginationParams, PageInfo, PaginatedResponse, ApiKeyResponse,
-    ChartCalculationResponse
+    ChartCalculationResponse, UserProfileResponse
 )
 from app.api.dependencies import get_api_key, RateLimiter
 from app.core.chart import create_natal_chart
@@ -386,6 +386,52 @@ async def get_house_systems(
             error_code=ErrorCodes.INTERNAL_ERROR,
             message="Failed to retrieve house systems"
         )
+
+
+@router.get("/profiles")
+async def get_user_profiles(
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_api_key)
+):
+    """
+    Get all user profiles
+    
+    Args:
+        db: Database session
+        api_key: API key for authentication
+        
+    Returns:
+        List of user profiles
+    """
+    from app.models import UserProfile
+    from app.api.schemas import UserProfileResponse
+    
+    try:
+        logger.info("User profiles requested")
+        profiles = db.query(UserProfile).all()
+        
+        # Convert DB models to response schemas
+        result = []
+        for profile in profiles:
+            response = UserProfileResponse(
+                id=profile.id,
+                name=profile.name,
+                birth_date=profile.birth_date,
+                birth_time=profile.birth_time,
+                latitude=profile.latitude,
+                longitude=profile.longitude,
+                timezone=profile.timezone,
+                notes=profile.notes,
+                is_admin=profile.is_admin,
+                created_at=profile.created_at
+            )
+            result.append(response)
+            
+        logger.info(f"Retrieved {len(result)} user profiles")
+        return result
+    except Exception as e:
+        logger.error(f"Error retrieving user profiles: {str(e)}")
+        handle_exception(e, error_code=ErrorCodes.DATABASE_ERROR)
 
 
 @router.get("/health")

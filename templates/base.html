@@ -61,6 +61,9 @@
                         <a class="nav-link {% if request.endpoint == 'house_systems' %}active{% endif %}" href="{{ url_for('house_systems') }}">House Systems</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'profiles' %}active{% endif %}" href="{{ url_for('profiles') }}">User Profiles</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('api_redirect') }}" target="_blank">API Docs</a>
                     </li>
                 </ul>

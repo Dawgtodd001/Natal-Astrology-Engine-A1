@@ -36,6 +36,35 @@ def api_docs():
 @app.route('/chart', methods=['GET', 'POST'])
 def chart():
     """Chart generation page"""
+    # Check if a profile is requested
+    profile_id = request.args.get('profile')
+    selected_profile = None
+    
+    if profile_id:
+        try:
+            # Get profiles from API
+            profile_response = requests.get(
+                urljoin(API_BASE_URL, '/api/profiles'),
+                headers={"X-API-Key": API_KEY}
+            )
+            
+            if profile_response.status_code == 200:
+                profiles = profile_response.json()
+                
+                # Find the requested profile
+                for profile in profiles:
+                    if str(profile['id']) == profile_id:
+                        selected_profile = profile
+                        break
+                
+                if not selected_profile:
+                    flash("Profile not found", "warning")
+            else:
+                flash("Unable to retrieve profile data", "warning")
+                
+        except Exception as e:
+            flash(f"Error retrieving profile: {str(e)}", "danger")
+    
     if request.method == 'POST':
         try:
             # Extract form data
@@ -84,7 +113,9 @@ def chart():
     except:
         house_systems = {"placidus": "Default house system"}
     
-    return render_template('chart_form.html', house_systems=house_systems)
+    return render_template('chart_form.html', 
+                          house_systems=house_systems,
+                          profile=selected_profile)
 
 @app.route('/interpret', methods=['GET', 'POST'])
 def interpret():
@@ -167,6 +198,24 @@ def house_systems():
             return render_template('house_systems.html', systems=systems)
         else:
             flash("Unable to retrieve house systems information", 'warning')
+            return redirect(url_for('index'))
+    except Exception as e:
+        flash(f"Error: {str(e)}", 'danger')
+        return redirect(url_for('index'))
+
+@app.route('/profiles')
+def profiles():
+    """Display user profiles"""
+    try:
+        response = requests.get(
+            urljoin(API_BASE_URL, '/api/profiles'),
+            headers={"X-API-Key": API_KEY}
+        )
+        if response.status_code == 200:
+            user_profiles = response.json()
+            return render_template('profiles.html', profiles=user_profiles)
+        else:
+            flash("Unable to retrieve user profiles", 'warning')
             return redirect(url_for('index'))
     except Exception as e:
         flash(f"Error: {str(e)}", 'danger')

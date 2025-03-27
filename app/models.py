@@ -103,6 +103,25 @@ class ChartCalculation(Base):
         return f"<ChartCalculation {self.birth_date} {self.birth_time}>"
 
 
+class UserProfile(Base):
+    """User profile for storing saved birth data"""
+    __tablename__ = "user_profiles"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    birth_date = Column(String(10), nullable=False)
+    birth_time = Column(String(5), nullable=False)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    timezone = Column(String(50), nullable=True)
+    notes = Column(Text, nullable=True)
+    is_admin = Column(Boolean, default=False)
+    created_at = Column(String(26), nullable=False)
+    
+    def __repr__(self):
+        return f"<UserProfile {self.name}: {self.birth_date} {self.birth_time}>"
+
+
 class InterpretationTemplate(Base):
     """Templates for different output formats"""
     __tablename__ = "interpretation_templates"

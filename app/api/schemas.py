@@ -216,3 +216,19 @@ class ChartCalculationResponse(BaseModel):
     house_system: str
     zodiac_type: str
     calculation_timestamp: str
+
+
+class UserProfileResponse(BaseModel):
+    """
+    User profile for stored birth data
+    """
+    id: int
+    name: str
+    birth_date: str
+    birth_time: str
+    latitude: float
+    longitude: float
+    timezone: str
+    notes: Optional[str] = None
+    is_admin: bool
+    created_at: str

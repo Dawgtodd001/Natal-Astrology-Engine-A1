@@ -42,7 +42,7 @@ def get_db():
 
 def init_db():
     """Initialize the database with tables and seed data"""
-    from app.models import Base, PlanetInterpretation, HouseInterpretation, AspectInterpretation, InterpretationTemplate, ApiKey
+    from app.models import Base, PlanetInterpretation, HouseInterpretation, AspectInterpretation, InterpretationTemplate, ApiKey, UserProfile
     
     # Create all tables
     Base.metadata.create_all(bind=engine)
@@ -69,6 +69,9 @@ def init_db():
     # Seed templates if none exist
     if db.query(InterpretationTemplate).count() == 0:
         seed_templates(db)
+    
+    # Seed admin user profile
+    seed_user_profiles(db)
     
     db.close()
 
@@ -327,6 +330,36 @@ The Ascendant represents your outward personality and how others perceive you. W
     
     db.add_all([basic_text, markdown])
     db.commit()
+
+def seed_user_profiles(db):
+    """Add admin user profile to database if it doesn't exist"""
+    from app.models import UserProfile
+    import datetime
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    # Check if Parker Todd's profile exists
+    profile = db.query(UserProfile).filter(UserProfile.name == "Parker Todd").first()
+    if not profile:
+        # Create Parker Todd's profile with admin privileges
+        admin_profile = UserProfile(
+            name="Parker Todd",
+            birth_date="1997-10-16",  # Replace with actual data if needed
+            birth_time="16:30",       # Replace with actual data if needed
+            latitude=43.615,          # Boise, ID latitude
+            longitude=-116.2023,      # Boise, ID longitude
+            timezone="America/Boise",
+            notes="Creator and Admin of Natal Astrology Engine",
+            is_admin=True,
+            created_at=datetime.datetime.now().isoformat()
+        )
+        db.add(admin_profile)
+        db.commit()
+        logger.info("Created admin profile for Parker Todd")
+    else:
+        logger.info("Admin profile for Parker Todd already exists")
+
 
 def seed_api_keys(db):
     """Add default API keys to database if they don't exist"""

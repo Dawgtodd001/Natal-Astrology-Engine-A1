@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}User Profiles - Natal Astrology Engine{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">User Profiles</h1>
+            <p class="mb-4">
+                Profiles allow you to save birth information for quick chart generation.
+            </p>
+            
+            {% if profiles %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Name</th>
+                                <th>Birth Date</th>
+                                <th>Birth Time</th>
+                                <th>Location</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for profile in profiles %}
+                            <tr>
+                                <td>{{ profile.name }}</td>
+                                <td>{{ profile.birth_date }}</td>
+                                <td>{{ profile.birth_time }}</td>
+                                <td>
+                                    Lat: {{ profile.latitude|round(4) }}, 
+                                    Lon: {{ profile.longitude|round(4) }}
+                                    {% if profile.timezone %}
+                                    <br><small class="text-muted">{{ profile.timezone }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('chart') }}?profile={{ profile.id }}" class="btn btn-primary btn-sm">
+                                        Load Chart
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    No profiles found. Add a profile to get started.
+                </div>
+            {% endif %}
+            
+            <div class="mt-4">
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                    <i class="fa fa-arrow-left"></i> Back to Home
+                </a>
+                <a href="{{ url_for('chart') }}" class="btn btn-primary ms-2">
+                    <i class="fa fa-plus"></i> Create New Chart
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
