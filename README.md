@@ -28,6 +28,9 @@ The API is built with:
 - **PostgreSQL**: Robust relational database
 - **Flatlib**: Astrological calculation library
 - **Timezonefinder & Pytz**: Location-based timezone resolution
+- **Prometheus**: Real-time metrics collection
+- **Grafana**: Metrics visualization and dashboards
+- **Redis**: High-performance caching
 
 The architecture follows a clean, modular design with clear separation of concerns:
 
@@ -35,6 +38,7 @@ The architecture follows a clean, modular design with clear separation of concer
 - **Core Layer**: Astrological calculations and chart generation
 - **Database Layer**: Data persistence and caching
 - **Utilities**: Shared functionality like logging and error handling
+- **Monitoring Layer**: Real-time performance tracking and observability
 
 ## API Endpoints
 
@@ -96,7 +100,42 @@ Docker setup includes:
 - Web interface (Flask application)
 - API service (FastAPI)
 - Redis cache
+- Prometheus metrics collector
+- Grafana dashboards
+- Redis Exporter for cache metrics
 - Automatic environment setup
+
+## Monitoring and Observability
+
+The application includes comprehensive monitoring and observability features:
+
+### Prometheus Metrics
+
+The following metrics are collected:
+- API request counts, latency, and status codes
+- Cache operations (hits, misses, set operations)
+- Redis performance metrics
+- System resource usage (CPU, memory)
+- Database connection status
+
+### Grafana Dashboards
+
+Pre-configured Grafana dashboards are provided:
+- **API Dashboard**: Request rates, status codes, latency percentiles
+- **Redis Cache Dashboard**: Hit rates, memory usage, operation counts
+- **System Metrics Dashboard**: CPU, memory, and overall system health
+
+### Access Monitoring
+
+When running with Docker:
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000 (default login: admin/admin)
+
+### Health Endpoints
+
+- Web Interface: http://localhost:5000/health
+- API: http://localhost:8000/api/health
+- Redis Cache: http://localhost:8000/api/admin/cache/health
 
 ## Testing
 
@@ -111,6 +150,9 @@ python test_flatlib.py
 
 # Test house system calculations
 python test_house.py
+
+# Test Redis cache functionality
+python test_redis_cache.py
 ```
 
 ## License
@@ -121,8 +163,17 @@ python test_house.py
 
 This project uses the following open-source libraries:
 
+### Core Components
 - [flatlib](https://github.com/flatangle/flatlib) - Astrological calculation library
-- [FastAPI](https://fastapi.tiangolo.com/) - Web framework
-- [SQLAlchemy](https://www.sqlalchemy.org/) - ORM
+- [FastAPI](https://fastapi.tiangolo.com/) - Web framework for API
+- [Flask](https://flask.palletsprojects.com/) - Web framework for web interface
+- [SQLAlchemy](https://www.sqlalchemy.org/) - ORM for database operations
 - [Timezonefinder](https://github.com/MrMinimal64/timezonefinder) - Timezone lookup library
 - [Pytz](https://pythonhosted.org/pytz/) - Timezone library
+
+### Monitoring and Observability
+- [Prometheus](https://prometheus.io/) - Time series database for metrics
+- [Grafana](https://grafana.com/) - Visualization and analytics platform
+- [Prometheus Python Client](https://github.com/prometheus/client_python) - Prometheus instrumentation for Python
+- [Redis Exporter](https://github.com/oliver006/redis_exporter) - Prometheus exporter for Redis metrics
+- [Sentry](https://sentry.io/) - Error tracking and performance monitoring

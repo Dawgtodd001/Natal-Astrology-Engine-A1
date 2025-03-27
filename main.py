@@ -13,6 +13,7 @@ from app.main import app as fastapi_app
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_wtf.csrf import CSRFProtect, CSRFError
 from utils import check_api_health, api_request
+from monitoring import setup_metrics, track_api_request
 
 # Configure logging
 logging.basicConfig(level=logging.INFO,
@@ -34,6 +35,9 @@ app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # Session lifetime of 24 hours
 
 # Setup CSRF protection
 csrf = CSRFProtect(app)
+
+# Setup Prometheus metrics
+setup_metrics(app)
 
 # Security headers middleware
 @app.after_request

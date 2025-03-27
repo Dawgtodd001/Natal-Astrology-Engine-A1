@@ -17,12 +17,21 @@ services:
       - DEFAULT_API_KEY=${DEFAULT_API_KEY}
       - REDIS_URL=redis://redis:6379/0
       - REDIS_CACHE_TTL=604800
+      - SENTRY_DSN=${SENTRY_DSN}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-development}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+      - ENABLE_METRICS=${ENABLE_METRICS:-true}
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus-multiproc
     depends_on:
       - api
       - redis
     restart: unless-stopped
     networks:
       - astrology-network
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.path=/metrics"
+      - "prometheus.port=5000"
 
   # API service (FastAPI)
   api:
@@ -38,11 +47,20 @@ services:
       - DEFAULT_API_KEY=${DEFAULT_API_KEY}
       - REDIS_URL=redis://redis:6379/0
       - REDIS_CACHE_TTL=604800
+      - SENTRY_DSN=${SENTRY_DSN}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-development}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+      - ENABLE_METRICS=${ENABLE_METRICS:-true}
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus-multiproc
     depends_on:
       - redis
     restart: unless-stopped
     networks:
       - astrology-network
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.path=/metrics"
+      - "prometheus.port=8000"
 
   # Redis cache
   redis:
@@ -55,9 +73,66 @@ services:
     restart: unless-stopped
     networks:
       - astrology-network
+      
+  # Redis exporter for Prometheus metrics
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    environment:
+      - REDIS_ADDR=redis:6379
+    ports:
+      - "9121:9121"
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - astrology-network
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-15d}
+      - --web.console.libraries=/etc/prometheus/console_libraries
+      - --web.console.templates=/etc/prometheus/consoles
+      - --web.enable-lifecycle
+    restart: unless-stopped
+    networks:
+      - astrology-network
+
+  # Grafana for data visualization
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      # Add volumes for automatic provisioning
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_DOMAIN=${GRAFANA_DOMAIN:-localhost}
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-%(protocol)s://%(domain)s:%(http_port)s/}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    networks:
+      - astrology-network
 
 volumes:
   redis-data:
+  prometheus-data:
+  grafana-data:
 
 networks:
   astrology-network:

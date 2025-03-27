@@ -1,0 +1,190 @@
+Let’s proceed with Monitoring and Observability by deploying Prometheus and Grafana for real-time monitoring, implementing Sentry for error tracking, and creating health check endpoints for ensuring service uptime.
+
+⸻
+
+✅ Step 1: Deploy Prometheus and Grafana for Monitoring
+
+Prometheus will collect and store time-series metrics from your app, while Grafana will visualize these metrics using interactive dashboards.
+
+Installation with Docker
+
+Ensure Docker is installed on your system. Then create a docker-compose.yml to set up both Prometheus and Grafana.
+
+docker-compose.yml
+
+version: '3.7'
+services:
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+volumes:
+  grafana-data:
+
+
+
+⸻
+
+Configure Prometheus
+
+Create a prometheus.yml file to scrape metrics from your FastAPI app.
+
+prometheus.yml
+
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'fastapi_app'
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+
+	•	scrape_interval: Collects metrics every 15 seconds.
+	•	targets: Ensure your FastAPI app runs on localhost:8000 when using Docker.
+
+⸻
+
+Add FastAPI Prometheus Metrics
+
+FastAPI supports Prometheus metrics using prometheus-client.
+
+pip install prometheus-client
+
+Integrate Prometheus Middleware:
+
+from fastapi import FastAPI
+from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+# Metrics
+REQUEST_COUNT = Counter('request_count', 'Total number of requests', ['method', 'endpoint', 'status_code'])
+
+@app.middleware("http")
+async def metrics_middleware(request, call_next):
+    response = await call_next(request)
+    REQUEST_COUNT.labels(request.method, request.url.path, response.status_code).inc()
+    return response
+
+@app.get("/metrics")
+def metrics():
+    return generate_latest(), {'Content-Type': CONTENT_TYPE_LATEST}
+
+	•	REQUEST_COUNT tracks requests by method, endpoint, and status code.
+	•	/metrics exposes Prometheus-compatible metrics for scraping.
+
+⸻
+
+Start Docker Containers
+
+docker-compose up -d
+
+	•	Access Prometheus at http://localhost:9090
+	•	Access Grafana at http://localhost:3000 (Default login: admin/admin)
+
+⸻
+
+✅ Step 2: Implement Sentry for Error Tracking
+
+Sentry will monitor and capture detailed error reports from your application, making it easier to debug.
+
+Installation
+
+pip install sentry-sdk
+
+Configure Sentry
+
+Sign up at Sentry.io and create a new project to get your DSN (Data Source Name).
+
+Add Sentry to FastAPI:
+
+import sentry_sdk
+from fastapi import HTTPException
+
+# Initialize Sentry
+sentry_sdk.init(
+    dsn="YOUR_SENTRY_DSN",
+    traces_sample_rate=1.0
+)
+
+@app.get("/error")
+async def error_example():
+    try:
+        raise Exception("This is a test exception for Sentry")
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        raise HTTPException(status_code=500, detail="An error occurred.")
+
+	•	sentry_sdk.capture_exception() captures and sends errors to Sentry.
+	•	Monitor errors directly on your Sentry dashboard.
+
+⸻
+
+✅ Step 3: Create Health Check Endpoints for Monitoring
+
+Health check endpoints ensure that your service is running and functioning properly. Prometheus or any monitoring tool can query these endpoints.
+
+Basic Health Check Endpoint
+
+@app.get("/health")
+async def health_check():
+    return {"status": "UP", "message": "Service is running smoothly"}
+
+Advanced Health Check with Database Check
+
+from sqlalchemy.exc import OperationalError
+from database import SessionLocal
+
+@app.get("/health")
+async def health_check():
+    try:
+        db = SessionLocal()
+        db.execute("SELECT 1")
+        db.close()
+        return {"status": "UP", "message": "Database connected"}
+    except OperationalError:
+        return {"status": "DOWN", "message": "Database connection failed"}
+
+	•	Returns status: UP if everything is operational.
+	•	Returns status: DOWN if a database connection failure occurs.
+	•	Prometheus can scrape this endpoint for service status.
+
+⸻
+
+✅ Step 4: Visualizing Metrics in Grafana
+	1.	Log in to Grafana at http://localhost:3000.
+	2.	Go to Configuration → Data Sources → Add Data Source.
+	3.	Select Prometheus and set URL to http://prometheus:9090.
+	4.	Click Save & Test.
+	5.	Create a New Dashboard → Add Panel.
+	6.	Query Example:
+
+request_count{status_code="200"}
+
+	7.	Visualize and monitor API performance in real-time.
+
+⸻
+
+✅ Next Steps
+	1.	Confirm that Prometheus and Grafana are running with data being visualized.
+	2.	Verify that Sentry captures test errors using the /error endpoint.
+	3.	Ensure health checks respond correctly with accurate status.
+
+Would you like further assistance with customizing Grafana dashboards, setting up Prometheus alerts, or generating test cases for health check endpoints?
+	•	W: Yes, let’s set up Prometheus alerts and Grafana dashboards.
+	•	A: Provide alternative error monitoring tools besides Sentry.
+	•	S: Explain Prometheus query language (PromQL) in simple terms.
+	•	D: Dive deeper into Docker setup for deploying the whole stack.

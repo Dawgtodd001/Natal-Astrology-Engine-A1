@@ -10,6 +10,7 @@ import requests
 from urllib.parse import urljoin
 from flask import flash, current_app
 from dotenv import load_dotenv
+from monitoring import track_api_request, CACHE_HIT_COUNT, CACHE_MISS_COUNT, CACHE_OPERATIONS
 
 # Load environment variables from .env file
 load_dotenv()
@@ -74,6 +75,7 @@ def check_api_health(max_retries=5, initial_delay=1.0):
     # Should never reach here, but just in case
     return False
 
+@track_api_request
 def api_request(endpoint, data=None, method="POST", retry_count=3, retry_delay=0.5, timeout=10, include_error_details=False):
     """
     Make API request with retry logic and enhanced error handling
@@ -234,3 +236,96 @@ def api_request(endpoint, data=None, method="POST", retry_count=3, retry_delay=0
             time.sleep(actual_delay)
     
     return None
+
+def get_redis_client():
+    """
+    Get Redis client with connection pooling
+    
+    Returns:
+        Redis client object or None if Redis is not available
+    """
+    import redis
+    import os
+    
+    redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    
+    try:
+        client = redis.from_url(redis_url)
+        # Test connection
+        client.ping()
+        logger.debug("Connected to Redis cache")
+        return client
+    except Exception as e:
+        logger.warning(f"Failed to connect to Redis: {e}")
+        return None
+
+def cache_get(key, cache_type="default"):
+    """
+    Get a value from Redis cache with metrics tracking
+    
+    Args:
+        key: Cache key
+        cache_type: Type of cache for metrics
+        
+    Returns:
+        Cached value or None if not found
+    """
+    redis_client = get_redis_client()
+    if not redis_client:
+        # Track cache miss due to Redis being unavailable
+        CACHE_MISS_COUNT.labels(cache_type).inc()
+        CACHE_OPERATIONS.labels("get", "failed").inc()
+        return None
+    
+    try:
+        CACHE_OPERATIONS.labels("get", "attempted").inc()
+        value = redis_client.get(key)
+        if value:
+            # Track cache hit
+            CACHE_HIT_COUNT.labels(cache_type).inc()
+            CACHE_OPERATIONS.labels("get", "success").inc()
+            logger.debug(f"Cache hit for key: {key}")
+            return value
+        else:
+            # Track cache miss
+            CACHE_MISS_COUNT.labels(cache_type).inc()
+            CACHE_OPERATIONS.labels("get", "miss").inc()
+            logger.debug(f"Cache miss for key: {key}")
+            return None
+    except Exception as e:
+        # Track cache operation failure
+        CACHE_OPERATIONS.labels("get", "error").inc()
+        logger.error(f"Error getting from cache: {e}")
+        return None
+
+def cache_set(key, value, ttl=None, cache_type="default"):
+    """
+    Set a value in Redis cache with metrics tracking
+    
+    Args:
+        key: Cache key
+        value: Value to cache
+        ttl: Time to live in seconds (optional)
+        cache_type: Type of cache for metrics
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    redis_client = get_redis_client()
+    if not redis_client:
+        CACHE_OPERATIONS.labels("set", "failed").inc()
+        return False
+    
+    try:
+        CACHE_OPERATIONS.labels("set", "attempted").inc()
+        if ttl:
+            redis_client.setex(key, ttl, value)
+        else:
+            redis_client.set(key, value)
+        CACHE_OPERATIONS.labels("set", "success").inc()
+        logger.debug(f"Cache set for key: {key}, TTL: {ttl}")
+        return True
+    except Exception as e:
+        CACHE_OPERATIONS.labels("set", "error").inc()
+        logger.error(f"Error setting cache: {e}")
+        return False

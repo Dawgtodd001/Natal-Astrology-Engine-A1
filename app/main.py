@@ -19,6 +19,7 @@ from app.database import init_db
 from app.utils.logging import setup_logging, get_logger
 from app.utils.error_handling import handle_exception, ErrorCodes
 from app.utils.redis_cache import is_redis_available
+from app.utils.monitoring import init_monitoring
 
 # Set up structured logging
 setup_logging(level=logging.INFO)
@@ -201,11 +202,23 @@ async def read_root():
                         <li><a href="/api/redoc">ReDoc Documentation</a></li>
                     </ul>
                 </div>
+                <div class="container">
+                    <h2>Monitoring</h2>
+                    <p>Access monitoring endpoints:</p>
+                    <ul>
+                        <li><a href="/metrics">Prometheus Metrics</a></li>
+                        <li><a href="/health">Health Status</a></li>
+                    </ul>
+                </div>
             </body>
             </html>
             """)
     
     return FileResponse("static/index.html")
+
+# Initialize monitoring before app startup
+init_monitoring(app)
+logger.info("Monitoring system initialized")
 
 # Initialize database and check Redis on startup
 @app.on_event("startup")
