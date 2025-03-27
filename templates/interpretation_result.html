@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Natal Astrology Engine - Chart Interpretation{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h2 class="h5 mb-0">Chart Interpretation</h2>
+                <div>
+                    <a href="{{ url_for('interpret') }}" class="btn btn-sm btn-outline-light">
+                        <i class="fa fa-arrow-left"></i> Back to Interpret Form
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <div class="chart-info mb-3">
+                        <h4>Birth Data</h4>
+                        <ul class="list-group">
+                            {% if birth_data is mapping %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>Date:</span>
+                                    <span class="badge bg-primary">{{ birth_data.get('birth_date', 'Unknown') }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>Time:</span>
+                                    <span class="badge bg-primary">{{ birth_data.get('birth_time', 'Unknown') }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>Location:</span>
+                                    <span class="badge bg-primary">
+                                        Lat: {{ birth_data.get('latitude', 'Unknown') }}, 
+                                        Long: {{ birth_data.get('longitude', 'Unknown') }}
+                                    </span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>Timezone:</span>
+                                    <span class="badge bg-primary">{{ birth_data.get('timezone', 'Unknown') }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>House System:</span>
+                                    <span class="badge bg-primary">{{ birth_data.get('house_system', 'placidus')|capitalize }}</span>
+                                </li>
+                            {% else %}
+                                <li class="list-group-item">
+                                    <span>Birth data information not available in detail</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                    
+                    <!-- Interpretation content -->
+                    <h4>Interpretation</h4>
+                    {% if birth_data is mapping and birth_data.get('template_name') == 'simple_html' %}
+                        <div class="interpretation-content">
+                            {{ interpretation|safe }}
+                        </div>
+                    {% else %}
+                        <pre class="interpretation-content text-wrap">{{ interpretation }}</pre>
+                    {% endif %}
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('chart') }}" class="btn btn-primary">
+                        <i class="fa fa-chart-bar"></i> Generate a New Chart
+                    </a>
+                    <a href="{{ url_for('interpret') }}" class="btn btn-outline-secondary">
+                        <i class="fa fa-redo"></i> Try a Different Interpretation
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Highlight active nav item
+        const navItems = document.querySelectorAll('.nav-link');
+        navItems.forEach(item => {
+            if (item.getAttribute('href').includes('interpret')) {
+                item.classList.add('active');
+            }
+        });
+    });
+</script>
+{% endblock %}

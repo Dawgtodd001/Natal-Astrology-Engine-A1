@@ -237,13 +237,27 @@ def interpret():
             )
             
             if response.status_code == 200:
+                # Get the interpretation text directly
                 interpretation = response.text
-                return render_template('interpretation_result.html', 
-                                      interpretation=interpretation, 
-                                      birth_data=birth_data)
+                
+                # Explicitly log what we're passing to the template for debugging
+                app.logger.info(f"Rendering interpretation with data type: {type(birth_data)}")
+                
+                # Render the template with the interpretation and birth data
+                return render_template(
+                    'interpretation_result.html', 
+                    interpretation=interpretation, 
+                    birth_data=birth_data
+                )
             else:
-                error_data = response.json()
-                flash(f"Error: {error_data.get('detail', {}).get('message', 'Unknown error')}", 'danger')
+                try:
+                    error_data = response.json()
+                    error_message = error_data.get('detail', {})
+                    if isinstance(error_message, dict):
+                        error_message = error_message.get('message', 'Unknown error')
+                    flash(f"Error: {error_message}", 'danger')
+                except Exception as e:
+                    flash(f"Error: {response.text or str(e)}", 'danger')
                 
         except Exception as e:
             flash(f"Error generating interpretation: {str(e)}", 'danger')
