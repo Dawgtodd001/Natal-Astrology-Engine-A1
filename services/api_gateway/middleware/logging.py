@@ -21,7 +21,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Import correlation ID utilities
-from services.api-gateway.middleware.correlation import get_correlation_id
+from services.api_gateway.middleware.correlation import get_correlation_id
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):

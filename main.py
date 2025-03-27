@@ -12,7 +12,8 @@ from urllib.parse import urljoin
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_wtf.csrf import CSRFProtect, CSRFError
 from shared.utils.api_client import check_api_health, api_request
-from shared.monitoring.metrics import setup_metrics, track_api_request
+from monitoring import setup_metrics
+from shared.monitoring.metrics import track_request as track_api_request
 
 # Configure logging
 logging.basicConfig(level=logging.INFO,
