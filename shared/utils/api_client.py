@@ -32,7 +32,7 @@ def check_api_health(max_retries=5, initial_delay=1.0, timeout=2.0) -> bool:
     """
     # Get API URL from settings
     api_url = settings.API_GATEWAY_URL
-    health_endpoint = f"{api_url}/api/health"
+    health_endpoint = f"{api_url}/api/v1/health"
     
     for attempt in range(max_retries):
         try:
@@ -103,7 +103,7 @@ def api_request(
         endpoint = endpoint[1:]
         
     # Build full URL
-    url = f"{api_url}/api/{endpoint}"
+    url = f"{api_url}/api/v1/{endpoint}"
     
     # Default headers
     headers = {
